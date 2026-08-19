@@ -22,7 +22,7 @@ If any of these are missing or ambiguous, ask before generating files — don't 
 
 Under `backend/departments/<dept_id>/`:
 
-- **`__init__.py`** — exports `SPEC = DepartmentSpec(...)` populated from the collected inputs, `a2a_exposed` set per input 6.
+- **`__init__.py`** — exports `SPEC = DepartmentSpec(...)` populated from the collected inputs (including `on_task_received=on_task_received` imported from `agents.py`), `a2a_exposed` set per input 6.
 - **`agents.py`** — a `SequentialAgent` (or `ParallelAgent`, per input 4) skeleton with one `LlmAgent` stub per pipeline stage, each with a placeholder `instruction=` pointing at its prompt file, model set to the project's pinned Gemini model constant (never hardcode a model string here — import from `backend/app/adk_agents/factory.py`'s shared constant).
 - **`tools.py`** — empty stub with a comment pointing at the universal tools (`send_message`, `read_memory`, `write_memory`, `update_status`, `claim_task`, `report_result`) already available to every department; add department-specific `FunctionTool`s here as needed.
 - **`schemas.py`** — Pydantic stubs for this department's task input/output payloads.
@@ -32,7 +32,7 @@ Under `backend/departments/<dept_id>/`:
 
 ## Wiring that must happen automatically, not left to the generated stub
 
-- `@audited_task` is applied at the base-class dispatch path — do **not** add it again in the generated department code.
+- The generated `agents.py` must decorate its `on_task_received` function with `@audited_task(DEPARTMENT_ID)` (from `backend/departments/base.py`) and `__init__.py` must pass it as `SPEC.on_task_received` — this is what wires in hash-chained audit logging and the task-status/reply writeback; a department that forgets the decorator silently loses both.
 - If the department has any `aspects.py` checkers, confirm they're actually registered in `SPEC.aspects` — a checker defined but not registered is a silent no-op.
 - Append a row for the new department to the roster table in `/docs/system_prompt.md` (create the table if it doesn't exist yet).
 - Remind the user (don't do it automatically) to add a matching entry to `/departments/<dept_id>.yaml` (zone/desk positions, accent palette, character roster) and to `frontend/src/scene/office/departments.ts` so it renders on the office floor — this skill only generates the backend package.

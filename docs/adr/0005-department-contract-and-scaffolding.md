@@ -8,7 +8,7 @@ Corporate is meant to grow to a full roster of departments (Finance, Engineering
 
 ## Decision
 
-Every department is a Python package implementing one `DepartmentSpec` (department id, display name, an ADK root agent, accepted task types, a memory namespace, contributed verifier "aspect" checkers, and an optional human-review predicate) and one method, `on_task_received(task) -> TaskResult`, which is the *only* entrypoint the platform ever calls. The base class wraps every call with the shared audit-logging decorator and handles the task-status/reply writeback contract. Departments never touch Firestore, Pub/Sub, or the integration broker directly — only through the platform client.
+Every department is a Python package exporting one `DepartmentSpec` (department id, display name, accepted task types, a memory namespace, an `on_task_received` function, contributed verifier "aspect" checkers, an optional human-review predicate, and an optional ADK root agent for A2A exposure). `on_task_received` — signature `async def on_task_received(org_id: str, task: Task) -> TaskResult`, a plain function since departments are stateless modules — is the *only* entrypoint the platform ever calls. It's wrapped with the `@audited_task(department_id)` decorator, which handles hash-chained audit logging and the task-status/reply writeback contract. Departments never touch Firestore, Pub/Sub, or the integration broker directly — only through the platform client.
 
 A Claude Code skill (`new-department`) scaffolds this package structure from a short description, so adding a department is a matter of filling in a template, not designing a new integration surface each time.
 

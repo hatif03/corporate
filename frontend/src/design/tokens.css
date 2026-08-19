@@ -1,0 +1,62 @@
+:root {
+  --corp-bg: #f4f1ea;
+  --corp-panel: #ffffff;
+  --corp-border: #2b2b2b;
+  --corp-text: #1c1c1c;
+  --corp-accent-sky: #6c8ef5;
+  --corp-accent-mint: #6bcf7f;
+  --corp-accent-coral: #ff6b6b;
+  --corp-accent-lemon: #ffd93d;
+  --corp-accent-lilac: #9b7ede;
+  --corp-accent-peach: #ff9f43;
+
+  --status-idle: #a899b5;
+  --status-thinking: #4ecdc4;
+  --status-working: #ffd93d;
+  --status-waiting: #6c8ef5;
+  --status-blocked: #ff6b6b;
+  --status-success: #6bcf7f;
+  --status-ghost: #d9cfe0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--corp-bg);
+  color: var(--corp-text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.corp-panel {
+  background: var(--corp-panel);
+  border: 2px solid var(--corp-border);
+  box-shadow: 3px 3px 0 var(--corp-border);
+  padding: 12px;
+}
+
+.corp-button {
+  background: var(--corp-panel);
+  border: 2px solid var(--corp-border);
+  box-shadow: 2px 2px 0 var(--corp-border);
+  padding: 6px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.corp-button:active {
+  box-shadow: none;
+  transform: translate(2px, 2px);
+}
+
+.corp-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #1c1c1c;
+}

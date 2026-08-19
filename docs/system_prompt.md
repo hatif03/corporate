@@ -37,7 +37,7 @@ Corporate is a hosted, cloud-native multi-agent web app: a 2D office-floor UI wh
 
 ## The department contract
 
-Every department is a Python package under `backend/departments/<dept_id>/` exporting a `DepartmentSpec` (id, display name, root ADK agent, accepted task types, memory namespace, contributed verifier "aspect" checkers, optional human-review predicate) and implementing exactly one entrypoint: `async def on_task_received(task) -> TaskResult`. The base class wraps every call with `@audited_task` and handles the task-status/reply writeback. See ADR-0005. Use the `new-department` Claude Code skill to scaffold a new one — don't hand-roll the package structure.
+Every department is a Python package under `backend/departments/<dept_id>/` exporting a `DepartmentSpec` (id, display name, accepted task types, memory namespace, an `on_task_received` function, contributed verifier "aspect" checkers, optional human-review predicate, optional root ADK agent for A2A exposure). The **only** entrypoint the platform calls is that department's `on_task_received`, with signature `async def on_task_received(org_id: str, task: Task) -> TaskResult` — a plain function, not a class method (departments are stateless modules; their LlmAgents and session service are module-level singletons). Wrap it with `@audited_task(department_id)` from `backend/departments/base.py`, which handles hash-chained audit logging and the task-status/reply writeback. See ADR-0005. Use the `new-department` Claude Code skill to scaffold a new one — don't hand-roll the package structure.
 
 ## Shared utilities — use them, don't reimplement
 

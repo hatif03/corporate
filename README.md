@@ -6,7 +6,7 @@ Built for the **All Things Agentic** hackathon. Track: The Fortified Enterprise 
 
 ## Status
 
-Early build. See `/docs/adr/` for architectural decisions and `/docs/system_prompt.md` for the canonical engineering rules this project follows.
+Phase 1 (demo backbone): CEO agent + Finance & Audit department wired end to end over Pub/Sub, Firestore-backed sessions, and a minimal frontend (office floor + Monitor + Tasks kanban). Not yet deployed to Cloud Run — see Local development below. See `/docs/adr/` for architectural decisions and `/docs/system_prompt.md` for the canonical engineering rules this project follows.
 
 ## Stack
 
@@ -29,11 +29,33 @@ Early build. See `/docs/adr/` for architectural decisions and `/docs/system_prom
 
 ## Local development
 
-_Setup instructions land here as Phase 0/1 infrastructure is stood up — this section is a living document, kept in sync with `/infra/deploy/`._
+Prerequisites: Python 3.11+, Node 20+, a GCP project with Firestore (native mode) and the `agent-bus` Pub/Sub topic created (see Deployment below), and `gcloud auth application-default login` run once so the backend's Firestore/Pub-Sub clients can authenticate.
+
+**Backend:**
+```bash
+cd backend
+python -m venv .venv
+.venv/Scripts/activate        # .venv/bin/activate on macOS/Linux
+pip install -r requirements.txt
+cp .env.example .env          # fill in your GCP project id
+python scripts/seed.py        # creates the CEO + Finance agents in Firestore
+uvicorn app.main:app --reload --env-file .env
+```
+Set `LOCAL_DEV=1` in `.env` to run the Pub/Sub pull-loop instead of expecting real push delivery — useful before you've deployed a public backend URL for push subscriptions to target.
+
+Run the test suite with `pytest` from `backend/` (all current tests mock Firestore/Pub-Sub/Gemini, so they run without any live GCP credentials).
+
+**Frontend:**
+```bash
+cd frontend
+npm install
+cp .env.example .env           # fill in your Firebase web app config
+npm run dev
+```
 
 ## Deployment
 
-See `/infra/deploy/` and `/docs/ARCHITECTURE.md` for the full GCP setup and `gcloud`/`firebase` deploy sequence.
+See `/infra/deploy/` and `/docs/ARCHITECTURE.md` for the full GCP setup and `gcloud`/`firebase` deploy sequence. Not yet run against a live project as of this commit.
 
 ## Contributing
 
