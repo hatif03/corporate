@@ -32,7 +32,7 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
     const app = new Application()
 
     async function setup() {
-      await app.init({ width: 480, height: 320, backgroundColor: 0xf4f1ea, antialias: true })
+      await app.init({ width: 480, height: 380, backgroundColor: 0xf4f1ea, antialias: true })
       if (destroyed || !containerRef.current) {
         app.destroy(true);
         return

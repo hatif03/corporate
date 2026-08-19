@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     corporate_default_org_id: str = "demo"
     corporate_pubsub_topic: str = "agent-bus"
     corporate_backend_url: str = ""
+    # Public URL of the standalone A2A server (app/a2a_server.py), once
+    # deployed as its own Cloud Run service — see ADR-0004. Empty in local dev.
+    corporate_a2a_sales_url: str = ""
 
     local_dev: bool = False
 

@@ -2,7 +2,7 @@
 // Firestore/REST directly (mirrors the backend's platform-client convention
 // — see docs/system_prompt.md).
 
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore'
+import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore'
 import { db } from './firebase'
 import type { Agent, Task } from './types'
 
@@ -22,6 +22,25 @@ export function watchTasks(orgId: string, onChange: (tasks: Task[]) => void): ()
   const q = query(orgCollection(orgId, 'tasks'), orderBy('createdAt', 'desc'))
   return onSnapshot(q, (snap) => {
     onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Task))
+  })
+}
+
+export interface ActivityEntry {
+  id: string
+  ts: string
+  agentId: string
+  type: string
+  message: string
+}
+
+export function watchActivity(
+  orgId: string,
+  onChange: (entries: ActivityEntry[]) => void,
+  limitCount = 100,
+): () => void {
+  const q = query(orgCollection(orgId, 'activity_log'), orderBy('ts', 'desc'), limit(limitCount))
+  return onSnapshot(q, (snap) => {
+    onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ActivityEntry))
   })
 }
 

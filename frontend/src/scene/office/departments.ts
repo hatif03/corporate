@@ -17,4 +17,5 @@ export const DEPARTMENT_ZONES: DepartmentZone[] = [
   { id: 'finance_audit', displayName: 'Finance & Audit', x: 240, y: 20, width: 200, height: 120, color: 0x6bcf7f },
   { id: 'engineering_sre', displayName: 'Engineering & SRE', x: 20, y: 160, width: 200, height: 120, color: 0x6c8ef5 },
   { id: 'legal_risk', displayName: 'Legal & Risk', x: 240, y: 160, width: 200, height: 120, color: 0x9b7ede },
+  { id: 'sales_crm', displayName: 'Sales & CRM (A2A)', x: 20, y: 300, width: 420, height: 60, color: 0xff9f43 },
 ]

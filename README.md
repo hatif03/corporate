@@ -6,7 +6,7 @@ Built for the **All Things Agentic** hackathon. Track: The Fortified Enterprise 
 
 ## Status
 
-Phase 1 (demo backbone): CEO agent + Finance & Audit department wired end to end over Pub/Sub, Firestore-backed sessions, and a minimal frontend (office floor + Monitor + Tasks kanban). Not yet deployed to Cloud Run — see Local development below. See `/docs/adr/` for architectural decisions and `/docs/system_prompt.md` for the canonical engineering rules this project follows.
+Five departments implemented (Finance & Audit, Engineering & SRE, Legal & Risk, Office of the CEO, Sales & CRM — the last one also exposed externally over A2A), the CEO orchestrator, Pub/Sub messaging with loop-cap protection, Firestore-backed ADK sessions, and a frontend covering Monitor, Tasks, Ask-me, and Activity. Not yet deployed to Cloud Run — see Local development below. See `/docs/adr/` for architectural decisions and `/docs/system_prompt.md` for the canonical engineering rules this project follows.
 
 ## Stack
 
@@ -52,6 +52,14 @@ npm install
 cp .env.example .env           # fill in your Firebase web app config
 npm run dev
 ```
+
+**A2A server (Sales & CRM, optional):** a second, standalone entrypoint exposing the Sales & CRM pipeline over the A2A protocol for external callers — see `docs/adr/0004-a2a-scoped-to-external-boundary-only.md`.
+```bash
+cd backend
+uvicorn app.a2a_server:app --port 8001 --reload
+curl http://localhost:8001/.well-known/agent-card.json
+```
+Deployed separately from the main backend (its own Cloud Run service) so `/.well-known/agent-card.json` sits at that service's own root, as the A2A spec expects.
 
 ## Deployment
 

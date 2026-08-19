@@ -46,9 +46,9 @@ Every department is a Python package under `backend/departments/<dept_id>/` expo
 | `finance_audit` | Finance & Audit | `review_invoice` | implemented (Phase 1) |
 | `engineering_sre` | Engineering & SRE | `handle_incident` | implemented (Phase 2) |
 | `legal_risk` | Legal & Risk | `check_decision_conflict` | implemented (Phase 2) |
-| `executive` | Office of the CEO | — | planned (Phase 3) |
+| `executive` | Office of the CEO | `company_digest` | implemented (Phase 3) |
+| `sales_crm` | Sales & CRM | `qualify_lead` | implemented (Phase 3), **A2A-exposed** (`app/a2a_server.py`, ADR-0004) |
 | `hr_people_ops` | HR & People Ops | — | planned |
-| `sales_crm` | Sales & CRM | — | planned, A2A-exposed |
 | `customer_support` | Customer Support | — | planned, A2A-exposed |
 | `marketing_comms` | Marketing & Comms | — | planned |
 | `product_analytics` | Product & Data Analytics | — | planned |
