@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+
+# Build output
+dist/
+build/
+.vite/
+frontend/dist/
+backend/dist/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*-service-account*.json
+*.serviceaccount.json
+gcp-key*.json
+.firebase/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code harness runtime files (not project content)
+.claude/scheduled_tasks.lock
+
+# Logs
+*.log
+npm-debug.log*
+
+# Firebase
+.firebaserc.local
+firebase-debug.log
+firestore-debug.log
+ui-debug.log

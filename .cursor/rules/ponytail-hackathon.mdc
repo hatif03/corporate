@@ -1,0 +1,14 @@
+---
+description: Ponytail (anti-overengineering) enforcement level for this project's current phase
+alwaysApply: true
+---
+
+# Ponytail enforcement
+
+Current phase: **lite** — building the three core departments (Finance & Audit, Engineering/SRE, Legal & Risk) plus core platform plumbing. Prioritize a working end-to-end loop over minimality while the department contract and shared utilities are still settling.
+
+Switch to **full** once building the additional department roster (Executive, HR, Sales, Support, Marketing, Product/Analytics) from scratch — that phase is where over-engineering risk compounds across five-plus new builds.
+
+Never `ultra` — the hackathon deadline doesn't afford the friction.
+
+See ADR-0008 in `/docs/adr/` for the reasoning. If you change the phase, update this file and `/docs/system_prompt.md`'s Ponytail section together.

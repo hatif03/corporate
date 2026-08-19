@@ -1,0 +1,16 @@
+---
+description: Google ADK / Gemini usage conventions
+globs: **/agents.py,**/tools.py,backend/app/adk_agents/**
+---
+
+# ADK conventions
+
+- Pin `google-adk==2.7.1`. Python 3.11+ required.
+- Every agent is `LlmAgent` or a workflow-agent composition (`SequentialAgent`/`ParallelAgent`/`LoopAgent`) built through `app/adk_agents/factory.py` — don't instantiate ADK agents ad hoc elsewhere.
+- Model is Gemini only, configured via Vertex AI (`GOOGLE_GENAI_USE_VERTEXAI=1`). Never wire in a second LLM provider or a raw Gemini API key path in product code.
+- Use `async def` + `Runner.run_async(...)` — this project is async end to end on the backend. Don't introduce sync ADK call patterns.
+- Session persistence is `FirestoreSessionService`, always. `InMemorySessionService` will silently lose context between Cloud Run instances — never use it outside a local unit test.
+- Use workflow-agent composition (`sub_agents=`) only for steps *within* one department's own pipeline. CEO-to-department delegation is a Pub/Sub message, never an ADK `sub_agents=` call.
+- ADK 2.0+ features available and worth using where they fit: Jinja2-templated instructions (`use_jinja2=True`) for department prompt templates, tools returning media, model self-declared capabilities.
+- A2A: use `to_a2a()` / `RemoteA2aAgent` only per `.cursor/rules/00-architecture.mdc`'s boundary-only rule — never for internal orchestration.
+- Reference `.claude/skills/google-adk-python/SKILL.md` for deeper ADK API detail; verify anything it says against the pinned 2.7.1 docs if it looks stale.

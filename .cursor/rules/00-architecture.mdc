@@ -1,0 +1,48 @@
+---
+description: Canonical architecture rules for Corporate — mirrors /docs/system_prompt.md
+alwaysApply: true
+---
+
+<!--
+  This file is a manually-synced mirror of /docs/system_prompt.md (Cursor has no
+  native cross-file import). Keep them in sync — check both when reviewing a PR
+  that touches architecture. If they drift, /docs/system_prompt.md wins.
+-->
+
+# Corporate — architecture rules
+
+Corporate is a hosted, cloud-native multi-agent web app: a 2D office-floor UI where department agent teams work under a CEO orchestrator, visible through a "Command Center" dashboard.
+
+```
+/frontend    React + Vite + TS, Pixi.js office floor, xterm.js trace widget
+/backend     Python 3.12, FastAPI, Google ADK
+/departments Declarative per-department YAML config
+/shared      Cross-language schema definitions
+/infra       gcloud/firebase deployment scripts
+/docs        ADRs, system_prompt.md, architecture diagram
+```
+
+## Backend: Python only, ADK only
+
+- One language for the whole backend: Python. No department introduces a second language or agent framework.
+- Pin `google-adk==2.7.1`. Requires Python 3.11+. Don't mix ADK 1.x and 2.x session/storage data.
+- The only LLM in the shipped product is Gemini via Vertex AI. No other provider, no raw API key.
+- Agents are `LlmAgent`/`SequentialAgent`/`ParallelAgent`/`LoopAgent`. Use workflow-agent composition only *within* one department's own pipeline — CEO-to-department delegation goes over Pub/Sub, never `sub_agents=`.
+- Sessions are Firestore-backed (`FirestoreSessionService`), never `InMemorySessionService` — Cloud Run instances are ephemeral.
+
+## State and messaging
+
+- Firestore holds all durable state, namespaced `orgs/{orgId}/...`.
+- Pub/Sub carries live inter-agent messages on one `agent-bus` topic, one push subscription per agent. Message schema: `{id, conversation, in_reply_to, from, to, act, subject, body, hops, requires_reply, needs_human, created_at}` where `act` is `request|inform|propose|query|agree|refuse|done`.
+- `publish_message()` is the only place that increments `hops` or derives `requires_reply`. Loop cap: `hops > 12` blocks the publish and flags the task for human review.
+- Never touch Firestore/Pub-Sub/integrations directly from a department — always through the platform client.
+
+## A2A and Antigravity
+
+A2A is boundary-only (exposing Sales/Support externally), never for internal CEO-to-department messaging. The Antigravity SDK is optional/non-core, scoped to one stretch feature — don't add the dependency elsewhere.
+
+## Secrets
+
+All third-party credentials live in Secret Manager, referenced from Firestore via `secretRef`, never the raw value in code/Firestore/committed `.env`.
+
+Full detail and rationale: see `/docs/system_prompt.md` and `/docs/adr/`.

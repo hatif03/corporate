@@ -1,0 +1,13 @@
+---
+description: Firestore and Pub/Sub access rules
+globs: backend/**
+---
+
+# Firestore / Pub-Sub access
+
+- All Firestore reads/writes go through `app/services/` platform-client modules. Department code, tool functions, and route handlers never import `google.cloud.firestore` directly.
+- All data is namespaced `orgs/{orgId}/...`. There is no un-namespaced collection for application data.
+- All inter-agent message publishing goes through `app/services/pubsub_client.py`'s `publish_message()` — never construct/publish a Pub/Sub message any other way. This function owns `hops` incrementing, the `hops > 12` loop cap, and deriving `requires_reply` from `act`.
+- Session state is Firestore-backed via `FirestoreSessionService` (`orgs/{orgId}/agent_sessions/{agentId}`) — see `.cursor/rules/adk-conventions.mdc`.
+- Every mutation that should be tamper-evident is wrapped by `@audited_task` at the department-base-class level, not called ad hoc from inside a department.
+- Firestore Security Rules and backend-side membership checks are both required for any org-scoped read/write — a security rule alone is not sufficient once the backend also writes with an elevated service account.

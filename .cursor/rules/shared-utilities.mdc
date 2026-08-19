@@ -1,0 +1,14 @@
+---
+description: When to reach for the shared backend utilities instead of reimplementing
+globs: backend/departments/**,backend/shared/**
+---
+
+# Shared utilities — check before reimplementing
+
+Three modules under `backend/shared/` cover recurring cross-department needs. Before writing new logic in a department, check whether one of these already does it:
+
+- **`audit_chain.py`** — tamper-evident hash-chained logging. Applied automatically via the `@audited_task` decorator on `DepartmentSpec.on_task_received`. You should not need to call `append_entry`/`verify_chain` directly from department code.
+- **`verification.py`** — `ground_quote(quote, source_text)` (deterministic, no LLM, drops ungroundable claims) and `vote_aspects(claim, aspect_checkers)` (pluggable-checker fan-out with retry, ≥2/3 agreement). Any department output that quotes or cites evidence for a claim routes through this before being surfaced — see ADR-0007.
+- **`privacy_pipeline.py`** — redact-before-LLM PII handling. Any department ingesting external or user-generated text/images (Slack messages, screen captures, uploaded documents) runs it through this before the content reaches Gemini.
+
+If a department needs something that feels cross-cutting (not specific to its own domain), raise whether it belongs in `backend/shared/` instead of duplicating it locally.

@@ -1,0 +1,29 @@
+---
+description: The DepartmentSpec contract every department must implement
+globs: backend/departments/**
+---
+
+# Department contract
+
+Every department is a Python package under `backend/departments/<dept_id>/`:
+
+```
+<dept_id>/
+  __init__.py      # exports SPEC = DepartmentSpec(...)
+  agents.py        # ADK LlmAgent/SequentialAgent/ParallelAgent composition
+  tools.py         # ADK FunctionTool definitions
+  schemas.py       # Pydantic input/output payloads
+  aspects.py       # verifier "aspect" checkers this department contributes
+  prompts/*.md
+  tests/test_<dept_id>_smoke.py
+```
+
+`DepartmentSpec` (defined once in `backend/departments/base.py`) carries: `department_id`, `display_name`, `description`, `root_agent`, `accepted_task_types`, `memory_namespace`, `aspects`, `requires_human_review`, `a2a_exposed`.
+
+The **only** entrypoint the platform calls is `async def on_task_received(task) -> TaskResult`. Do not add a second public method departments are expected to expose.
+
+Rules when implementing a department:
+- Never import `google.cloud.firestore` or a Pub/Sub client directly inside a department package — go through the platform client in `app/services/`.
+- Never call `backend/shared/audit_chain.py` directly — it's applied automatically via the `@audited_task` decorator on the base class's dispatch path.
+- Do route any claim-with-evidence output through `backend/shared/verification.py` before returning it.
+- Prefer scaffolding a new department with the `new-department` Claude Code skill over hand-rolling this structure.
