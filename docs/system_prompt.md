@@ -50,8 +50,10 @@ Every department is a Python package under `backend/departments/<dept_id>/` expo
 | `sales_crm` | Sales & CRM | `qualify_lead` | implemented (Phase 3), **A2A-exposed** (`app/a2a_server.py`, ADR-0004) |
 | `hr_people_ops` | HR & People Ops | `hr_request` | implemented (Phase 5) |
 | `customer_support` | Customer Support | `support_ticket` | implemented (Phase 5) |
-| `marketing_comms` | Marketing & Comms | — | planned |
-| `product_analytics` | Product & Data Analytics | — | planned |
+| `marketing_comms` | Marketing & Comms | `marketing_request` | implemented (Phase 5) |
+| `product_analytics` | Product & Data Analytics | `analytics_query` | implemented (Phase 5) |
+
+All 9 departments from the original roster are now implemented.
 
 (The `new-department` skill appends a row here when it scaffolds a new department.)
 
