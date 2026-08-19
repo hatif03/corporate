@@ -4,12 +4,14 @@ import { MonitorView } from './views/monitor/MonitorView'
 import { TasksView } from './views/tasks/TasksView'
 import { AskMeView } from './views/askme/AskMeView'
 import { ActivityView } from './views/activity/ActivityView'
+import { TriggersView } from './views/triggers/TriggersView'
+import { WorkersView } from './views/workers/WorkersView'
 import { watchAgents, watchTasks } from './lib/platformClient'
 import type { Agent, Task } from './lib/types'
 
 const ORG_ID = import.meta.env.VITE_ORG_ID ?? 'demo'
 
-type Tab = 'monitor' | 'tasks' | 'askme' | 'activity'
+type Tab = 'monitor' | 'tasks' | 'askme' | 'activity' | 'triggers' | 'workers'
 
 function AskMeTabLabel({ pendingCount }: { pendingCount: number }) {
   return (
@@ -34,6 +36,8 @@ function App() {
     { id: 'tasks', label: 'Tasks' },
     { id: 'askme', label: <AskMeTabLabel pendingCount={pendingCount} /> },
     { id: 'activity', label: 'Activity' },
+    { id: 'triggers', label: 'Triggers' },
+    { id: 'workers', label: 'Workers' },
   ]
 
   return (
@@ -62,6 +66,8 @@ function App() {
       {tab === 'tasks' && <TasksView tasks={tasks} />}
       {tab === 'askme' && <AskMeView orgId={ORG_ID} tasks={tasks} />}
       {tab === 'activity' && <ActivityView orgId={ORG_ID} />}
+      {tab === 'triggers' && <TriggersView orgId={ORG_ID} />}
+      {tab === 'workers' && <WorkersView orgId={ORG_ID} />}
     </div>
   )
 }

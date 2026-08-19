@@ -61,3 +61,28 @@ export interface Task {
   createdBy: string
   priority: number
 }
+
+export type TriggerType = 'schedule' | 'webhook'
+
+export interface Trigger {
+  id: string
+  name: string
+  type: TriggerType
+  targetAgent: string
+  payloadTemplate: string
+  cron?: string | null
+  webhookSecret?: string | null
+  enabled: boolean
+  lastFiredAt?: string | null
+}
+
+export type WorkerStatus = 'spawned' | 'running' | 'done' | 'failed'
+
+export interface Worker {
+  id: string
+  sourceEvent: string
+  status: WorkerStatus
+  agentId: string
+  conversation: string
+  result?: Record<string, unknown> | null
+}

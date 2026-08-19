@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import audit, internal, org
+from app.api import audit, internal, org, triggers, workers
 from app.config import settings
 
 
@@ -30,6 +30,9 @@ app = FastAPI(title="Corporate backend", lifespan=lifespan)
 app.include_router(internal.router)
 app.include_router(org.router)
 app.include_router(audit.router)
+app.include_router(triggers.router)
+app.include_router(triggers.internal_router)
+app.include_router(workers.router)
 
 
 @app.get("/healthz")

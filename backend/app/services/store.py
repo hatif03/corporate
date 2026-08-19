@@ -15,7 +15,7 @@ from typing import Any
 
 from pydantic.alias_generators import to_camel
 
-from app.models import Agent, AgentStatus, CarryingToken, Message, Task, TaskStatus
+from app.models import Agent, AgentStatus, CarryingToken, Message, Task, TaskStatus, Trigger, Worker, WorkerStatus
 from app.services.firestore_client import org_collection, org_doc
 
 
@@ -113,3 +113,53 @@ def list_messages(org_id: str, limit: int = 200) -> list[Message]:
 def log_activity(org_id: str, agent_id: str, event_type: str, message: str, **refs: Any) -> None:
     entry = {"ts": _now(), "agentId": agent_id, "type": event_type, "message": message, **refs}
     org_collection(org_id, "activity_log").add(entry)
+
+
+# ---- triggers ------------------------------------------------------------
+
+
+def get_trigger(org_id: str, trigger_id: str) -> Trigger | None:
+    snap = org_doc(org_id, "triggers", trigger_id).get()
+    if not snap.exists:
+        return None
+    return Trigger(id=snap.id, **snap.to_dict())
+
+
+def create_trigger(org_id: str, trigger: Trigger) -> None:
+    data = trigger.model_dump(by_alias=True, exclude={"id"})
+    org_doc(org_id, "triggers", trigger.id).set(data)
+
+
+def list_triggers(org_id: str) -> list[Trigger]:
+    return [Trigger(id=d.id, **d.to_dict()) for d in org_collection(org_id, "triggers").stream()]
+
+
+def set_trigger_enabled(org_id: str, trigger_id: str, enabled: bool) -> None:
+    org_doc(org_id, "triggers", trigger_id).update({"enabled": enabled})
+
+
+def mark_trigger_fired(org_id: str, trigger_id: str) -> None:
+    org_doc(org_id, "triggers", trigger_id).update({"lastFiredAt": _now()})
+
+
+def delete_trigger(org_id: str, trigger_id: str) -> None:
+    org_doc(org_id, "triggers", trigger_id).delete()
+
+
+# ---- workers ------------------------------------------------------------
+
+
+def create_worker(org_id: str, worker: Worker) -> None:
+    data = worker.model_dump(by_alias=True, exclude={"id"})
+    org_doc(org_id, "workers", worker.id).set(data)
+
+
+def update_worker(org_id: str, worker_id: str, status: WorkerStatus, result: dict | None = None) -> None:
+    update: dict[str, Any] = {"status": status.value, "updatedAt": _now()}
+    if result is not None:
+        update["result"] = result
+    org_doc(org_id, "workers", worker_id).update(update)
+
+
+def list_workers(org_id: str) -> list[Worker]:
+    return [Worker(id=d.id, **d.to_dict()) for d in org_collection(org_id, "workers").stream()]

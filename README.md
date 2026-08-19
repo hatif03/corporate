@@ -6,7 +6,7 @@ Built for the **All Things Agentic** hackathon. Track: The Fortified Enterprise 
 
 ## Status
 
-Five departments implemented (Finance & Audit, Engineering & SRE, Legal & Risk, Office of the CEO, Sales & CRM — the last one also exposed externally over A2A), the CEO orchestrator, Pub/Sub messaging with loop-cap protection, Firestore-backed ADK sessions, and a frontend covering Monitor, Tasks, Ask-me, and Activity. Not yet deployed to Cloud Run — see Local development below. See `/docs/adr/` for architectural decisions and `/docs/system_prompt.md` for the canonical engineering rules this project follows.
+Five departments implemented (Finance & Audit, Engineering & SRE, Legal & Risk, Office of the CEO, Sales & CRM — the last one also exposed externally over A2A), the CEO orchestrator, Pub/Sub messaging with loop-cap protection, Firestore-backed ADK sessions, schedule/webhook triggers, ephemeral workers, and a frontend covering Monitor, Tasks, Ask-me, Activity, Triggers, and Workers. Not yet deployed to Cloud Run — see Local development below. See `/docs/adr/` for architectural decisions and `/docs/system_prompt.md` for the canonical engineering rules this project follows.
 
 ## Stack
 

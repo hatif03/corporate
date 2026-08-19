@@ -4,7 +4,7 @@
 
 import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore'
 import { db } from './firebase'
-import type { Agent, Task } from './types'
+import type { Agent, Task, Trigger, TriggerType, Worker } from './types'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000'
 
@@ -65,6 +65,49 @@ async function post(path: string, body: unknown): Promise<unknown> {
     throw new Error(`${path} failed: ${res.status} ${await res.text()}`)
   }
   return res.json()
+}
+
+async function del(path: string): Promise<unknown> {
+  const res = await fetch(`${BACKEND_URL}${path}`, { method: 'DELETE' })
+  if (!res.ok) {
+    throw new Error(`${path} failed: ${res.status} ${await res.text()}`)
+  }
+  return res.json()
+}
+
+export function watchTriggers(orgId: string, onChange: (triggers: Trigger[]) => void): () => void {
+  return onSnapshot(orgCollection(orgId, 'triggers'), (snap) => {
+    onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Trigger))
+  })
+}
+
+export function createTrigger(
+  orgId: string,
+  input: { name: string; type: TriggerType; target_agent: string; payload_template: string; cron?: string },
+): Promise<Trigger> {
+  return post(`/api/org/${orgId}/triggers`, input) as Promise<Trigger>
+}
+
+export function toggleTrigger(orgId: string, triggerId: string, enabled: boolean): Promise<unknown> {
+  return post(`/api/org/${orgId}/triggers/${triggerId}/toggle?enabled=${enabled}`, {})
+}
+
+export function deleteTrigger(orgId: string, triggerId: string): Promise<unknown> {
+  return del(`/api/org/${orgId}/triggers/${triggerId}`)
+}
+
+export function watchWorkers(orgId: string, onChange: (workers: Worker[]) => void): () => void {
+  return onSnapshot(orgCollection(orgId, 'workers'), (snap) => {
+    onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Worker))
+  })
+}
+
+export function spawnWorker(orgId: string, sourceEvent: string, prompt: string): Promise<{ worker_id: string }> {
+  return post(`/api/org/${orgId}/workers`, { source_event: sourceEvent, prompt }) as Promise<{ worker_id: string }>
+}
+
+export function stopWorker(orgId: string, workerId: string): Promise<unknown> {
+  return post(`/api/org/${orgId}/workers/${workerId}/stop`, {})
 }
 
 export function dispatchGoal(orgId: string, text: string): Promise<unknown> {
