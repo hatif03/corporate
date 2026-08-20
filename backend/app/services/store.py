@@ -64,6 +64,26 @@ def append_trace(org_id: str, agent_id: str, line: str, kind: str = "tool") -> N
     )
 
 
+# ---- per-agent memory (orgs/{orgId}/agents/{agentId}/memory/{memoryId}) ----
+
+
+def append_memory(org_id: str, agent_id: str, text: str, embedding: list[float], kind: str = "raw") -> str:
+    _, doc_ref = org_doc(org_id, "agents", agent_id).collection("memory").add(
+        {"text": text, "kind": kind, "embedding": embedding, "createdAt": _now()}
+    )
+    return doc_ref.id
+
+
+def list_memory(org_id: str, agent_id: str, limit_count: int = 50) -> list[dict]:
+    query = (
+        org_doc(org_id, "agents", agent_id)
+        .collection("memory")
+        .order_by("createdAt", direction="DESCENDING")
+        .limit(limit_count)
+    )
+    return [{"id": d.id, **d.to_dict()} for d in query.stream()]
+
+
 # ---- tasks -------------------------------------------------------------------
 
 

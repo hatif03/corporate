@@ -22,6 +22,7 @@ from google.adk.tools.tool_context import ToolContext
 
 from app.models import Act, Task, TaskStatus
 from app.services import pubsub_client, store
+from app.services.embeddings import embed_text
 from app.services.firestore_client import org_doc
 
 
@@ -119,20 +120,22 @@ async def list_tasks_tool(tool_context: ToolContext, status: str | None = None) 
     return [t.model_dump(mode="json", by_alias=True) for t in store.list_tasks(org_id, filt)]
 
 
-async def read_memory(tool_context: ToolContext) -> str:
-    """Read your own long-term memory notes from previous turns."""
+async def read_memory(tool_context: ToolContext, limit: int = 10) -> str:
+    """Read your most recent long-term memory notes from previous turns."""
     org_id, agent_id = _ids(tool_context)
-    snap = org_doc(org_id, "agents", agent_id).collection("memory").document("latest").get()
-    return snap.to_dict().get("text", "") if snap.exists else ""
+    entries = store.list_memory(org_id, agent_id, limit_count=limit)
+    if not entries:
+        return ""
+    return "\n".join(f"- {e['text']}" for e in reversed(entries))
 
 
 async def write_memory(text: str, tool_context: ToolContext) -> dict:
-    """Append a note to your own long-term memory for future turns to read."""
+    """Append a note to your own long-term memory for future turns (and
+    semantic search, see the Memory tab) to find."""
     org_id, agent_id = _ids(tool_context)
-    org_doc(org_id, "agents", agent_id).collection("memory").document("latest").set(
-        {"text": text, "kind": "raw", "createdAt": datetime.now(timezone.utc)}
-    )
-    return {"saved": True}
+    embedding = embed_text(text)
+    memory_id = store.append_memory(org_id, agent_id, text, embedding)
+    return {"saved": True, "memory_id": memory_id}
 
 
 async def set_note(note: str, tool_context: ToolContext) -> dict:

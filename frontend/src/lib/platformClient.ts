@@ -44,6 +44,50 @@ export function watchActivity(
   })
 }
 
+export interface MemoryEntry {
+  id: string
+  text: string
+  kind: string
+  createdAt: string
+}
+
+export function watchAgentMemory(
+  orgId: string,
+  agentId: string,
+  onChange: (entries: MemoryEntry[]) => void,
+  limitCount = 50,
+): () => void {
+  const q = query(
+    collection(db, 'orgs', orgId, 'agents', agentId, 'memory'),
+    orderBy('createdAt', 'desc'),
+    limit(limitCount),
+  )
+  return onSnapshot(q, (snap) => {
+    onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as MemoryEntry))
+  })
+}
+
+export interface MemoryHit {
+  agentId: string
+  memoryId: string
+  text: string
+  score: number
+}
+
+export async function searchMemory(
+  orgId: string,
+  query: string,
+  agentId?: string,
+  topK = 5,
+): Promise<MemoryHit[]> {
+  const result = (await post(`/api/org/${orgId}/memory/search`, {
+    query,
+    agent_id: agentId ?? null,
+    top_k: topK,
+  })) as { hits: MemoryHit[] }
+  return result.hits
+}
+
 export function watchAgentTrace(
   orgId: string,
   agentId: string,
