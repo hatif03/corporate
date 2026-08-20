@@ -33,6 +33,26 @@ export interface ActivityEntry {
   message: string
 }
 
+export interface MessageEntry {
+  id: string
+  from: string
+  to: string
+  act: string
+  subject: string
+  createdAt: string
+}
+
+export function watchMessages(
+  orgId: string,
+  onChange: (messages: MessageEntry[]) => void,
+  limitCount = 200,
+): () => void {
+  const q = query(orgCollection(orgId, 'messages'), orderBy('createdAt', 'desc'), limit(limitCount))
+  return onSnapshot(q, (snap) => {
+    onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as MessageEntry))
+  })
+}
+
 export function watchActivity(
   orgId: string,
   onChange: (entries: ActivityEntry[]) => void,
