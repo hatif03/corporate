@@ -4,6 +4,7 @@
 
 import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore'
 import { db } from './firebase'
+import { getIdToken } from './authClient'
 import type { Agent, Task, Trigger, TriggerType, Worker } from './types'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000'
@@ -119,10 +120,15 @@ export function watchAgentTrace(
   })
 }
 
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await getIdToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 async function post(path: string, body: unknown): Promise<unknown> {
   const res = await fetch(`${BACKEND_URL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify(body),
   })
   if (!res.ok) {
@@ -132,7 +138,7 @@ async function post(path: string, body: unknown): Promise<unknown> {
 }
 
 async function del(path: string): Promise<unknown> {
-  const res = await fetch(`${BACKEND_URL}${path}`, { method: 'DELETE' })
+  const res = await fetch(`${BACKEND_URL}${path}`, { method: 'DELETE', headers: await authHeaders() })
   if (!res.ok) {
     throw new Error(`${path} failed: ${res.status} ${await res.text()}`)
   }

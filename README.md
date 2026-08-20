@@ -6,7 +6,7 @@ Built for the **All Things Agentic** hackathon. Track: The Fortified Enterprise 
 
 ## Status
 
-All 9 planned departments implemented (Finance & Audit, Engineering & SRE, Legal & Risk, Office of the CEO, Sales & CRM, HR & People Ops, Customer Support, Marketing & Comms, Product & Data Analytics — Sales & CRM is also exposed externally over A2A), the CEO orchestrator, Pub/Sub messaging with loop-cap protection, Firestore-backed ADK sessions, schedule/webhook triggers, ephemeral workers, and a frontend covering Monitor, Tasks, Ask-me, Activity, Triggers, and Workers. Also has real semantic memory (Vertex AI text-embedding-004 + naive-cosine search across every agent's memory), an agent-to-agent message graph (hand-rolled deterministic force-directed layout, no external graph library), and a secrets-isolated integration broker (Slack/Jira/GitHub/Stripe/Notion/HubSpot templates, write-only secret setup via Secret Manager) with Engineering & SRE's Slack incident notifications as its first real consumer. The full planned Command Center tab set is implemented: Monitor, Tasks, Ask-me, Activity, Triggers, Workers, Memory, Graph. Not yet deployed to Cloud Run — see Local development below. See `/docs/adr/` for architectural decisions and `/docs/system_prompt.md` for the canonical engineering rules this project follows.
+All 9 planned departments implemented (Finance & Audit, Engineering & SRE, Legal & Risk, Office of the CEO, Sales & CRM, HR & People Ops, Customer Support, Marketing & Comms, Product & Data Analytics — Sales & CRM is also exposed externally over A2A), the CEO orchestrator, Pub/Sub messaging with loop-cap protection, Firestore-backed ADK sessions, schedule/webhook triggers, ephemeral workers, real semantic memory (Vertex AI text-embedding-004 + naive-cosine search), an agent-to-agent message graph, a secrets-isolated integration broker (Slack/Jira/GitHub/Stripe/Notion/HubSpot templates), and Firebase Auth + org-membership checks enforced in both Firestore Security Rules and the backend independently. The full planned Command Center tab set is implemented: Monitor, Tasks, Ask-me, Activity, Triggers, Workers, Memory, Graph. Not yet deployed to Cloud Run — see Local development below. See `/docs/adr/` for architectural decisions and `/docs/system_prompt.md` for the canonical engineering rules this project follows.
 
 ## Stack
 
@@ -38,10 +38,12 @@ python -m venv .venv
 .venv/Scripts/activate        # .venv/bin/activate on macOS/Linux
 pip install -r requirements.txt
 cp .env.example .env          # fill in your GCP project id
-python scripts/seed.py        # creates the CEO + Finance agents in Firestore
+python scripts/seed.py --owner-uid <your-firebase-uid>   # seeds agents + grants you org access
 uvicorn app.main:app --reload --env-file .env
 ```
 Set `LOCAL_DEV=1` in `.env` to run the Pub/Sub pull-loop instead of expecting real push delivery — useful before you've deployed a public backend URL for push subscriptions to target.
+
+Every `/api/org/{org_id}/*` endpoint requires a Firebase ID token from a user who's a member of that org (see `docs/system_prompt.md`'s Auth section) — sign in once via the frontend to create your Firebase user, grab your uid from the Firebase Console (or `firebase auth:export`), then re-run `seed.py --owner-uid` with it. Without this step every API call returns 401/403 by design.
 
 Run the test suite with `pytest` from `backend/` (all current tests mock Firestore/Pub-Sub/Gemini, so they run without any live GCP credentials).
 
@@ -64,6 +66,13 @@ Deployed separately from the main backend (its own Cloud Run service) so `/.well
 ## Deployment
 
 See `/infra/deploy/` and `/docs/ARCHITECTURE.md` for the full GCP setup and `gcloud`/`firebase` deploy sequence. Not yet run against a live project as of this commit.
+
+Firestore Security Rules (`firestore.rules`) and Hosting config (`firebase.json`) deploy via the Firebase CLI:
+```bash
+npm install -g firebase-tools   # once
+firebase deploy --only firestore:rules
+firebase deploy --only hosting
+```
 
 ## Contributing
 

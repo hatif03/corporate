@@ -217,3 +217,17 @@ def list_integrations(org_id: str) -> list[Integration]:
 
 def set_integration_enabled(org_id: str, integration_id: str, enabled: bool) -> None:
     org_doc(org_id, "integrations", integration_id).update({"enabled": enabled})
+
+
+# ---- org membership (defense-in-depth auth, see app/services/auth.py) ------
+
+
+def add_member(org_id: str, uid: str, role: str = "member") -> None:
+    org_doc(org_id, "members", uid).set({"role": role, "addedAt": _now()})
+
+
+def get_member_role(org_id: str, uid: str) -> str | None:
+    snap = org_doc(org_id, "members", uid).get()
+    if not snap.exists:
+        return None
+    return snap.to_dict().get("role", "member")

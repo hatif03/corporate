@@ -79,6 +79,14 @@ A2A (`to_a2a()` / `RemoteA2aAgent`, both built into ADK) is used only to expose 
 
 `google-antigravity` (0.1.12, Alpha) is not a core dependency. It's scoped to one optional stretch feature (an `auto_remediation` sub-agent in Engineering/SRE). If a feature doesn't already depend on it, don't add the dependency. The `agy` CLI is an optional developer tool for the team, not a product dependency.
 
+## Auth & multi-tenancy — defense in depth, two independent layers
+
+Every `orgs/{orgId}/...` collection is namespaced from day one, even with only `orgs/demo` seeded. Two layers enforce it independently (a Security Rule alone isn't sufficient once the backend writes with its own elevated service account):
+1. **Firestore Security Rules** (`firestore.rules`, repo root) — a client can only *read* an org's documents if `request.auth.uid` has a doc at `orgs/{orgId}/members/{uid}`; all client writes are rejected outright (writes only ever happen through the backend's service account).
+2. **Backend membership check** (`backend/app/services/auth.py`) — `require_org_member` verifies the caller's Firebase ID token *and* their `orgs/{orgId}/members/{uid}` role, wired as a router-level dependency on every `/api/org/{org_id}/*` router in `app/main.py` (not per-endpoint, so a new endpoint can't accidentally ship without it). `require_role("owner")` is available for owner-gated actions. `/internal/*` routes are deliberately excluded — those are Pub/Sub-push/Cloud-Scheduler targets authenticated via IAM/OIDC, not end-user tokens.
+
+Granting org membership is currently manual (`scripts/seed.py --owner-uid <uid>`) — there's no self-service invite flow yet.
+
 ## Secrets
 
 - All third-party credentials (Slack, Jira, Stripe, etc.) live in **Secret Manager**, referenced from Firestore `integrations/{id}.secretRef` — never the raw value in Firestore, code, or `.env` committed to git.

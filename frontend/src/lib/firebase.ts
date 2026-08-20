@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getFirestore } from 'firebase/firestore'
+import { getAuth, GoogleAuthProvider } from 'firebase/auth'
 
 // Every value here is a public client-side identifier, not a secret — see
 // https://firebase.google.com/docs/projects/api-keys. Real access control is
@@ -15,3 +16,5 @@ const firebaseConfig = {
 
 export const firebaseApp = initializeApp(firebaseConfig)
 export const db = getFirestore(firebaseApp)
+export const auth = getAuth(firebaseApp)
+export const googleProvider = new GoogleAuthProvider()

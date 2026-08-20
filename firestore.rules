@@ -1,0 +1,47 @@
+rules_version = '2';
+
+// Defense in depth alongside the backend's own membership check
+// (app/services/auth.py) — see docs/system_prompt.md's Auth section.
+// Neither layer alone is sufficient: these rules stop a client reading/
+// writing Firestore directly with a stolen ID token but no org
+// membership; the backend check stops the backend's own elevated
+// service-account writes from being reachable by a non-member caller
+// through the API.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOrgMember(orgId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid));
+    }
+
+    match /orgs/{orgId} {
+      allow read: if isOrgMember(orgId);
+      allow write: if false; // org metadata is backend-managed only
+
+      // Members list only visible to other members; membership changes
+      // are backend-managed only (no client ever writes its own role).
+      match /members/{uid} {
+        allow read: if isOrgMember(orgId);
+        allow write: if false;
+      }
+
+      // Every other org-scoped collection: members can read (the frontend
+      // reads agents/tasks/messages/etc. directly via onSnapshot), but all
+      // writes go through the backend API (which uses an elevated service
+      // account, not a client Firebase Auth token) so client writes are
+      // never allowed here even for members. This wildcard also structurally
+      // overlaps with /members/{uid} above — deliberately identical
+      // read/write outcomes on both, so it doesn't matter which one Firestore
+      // considers authoritative for that path.
+      match /{collection}/{document=**} {
+        allow read: if isOrgMember(orgId);
+        allow write: if false;
+      }
+    }
+  }
+}
