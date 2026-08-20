@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import audit, internal, memory, org, triggers, workers
+from app.api import audit, integrations, internal, memory, org, triggers, workers
 from app.config import settings
 
 
@@ -34,6 +34,7 @@ app.include_router(triggers.router)
 app.include_router(triggers.internal_router)
 app.include_router(workers.router)
 app.include_router(memory.router)
+app.include_router(integrations.router)
 
 
 @app.get("/healthz")

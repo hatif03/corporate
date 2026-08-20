@@ -65,6 +65,12 @@ All 9 departments from the original roster are now implemented.
 
 Before writing a new cross-cutting utility, check whether one of these three already covers it.
 
+## Integrations — the broker is the only place a secret materializes
+
+`backend/app/services/integration_broker.py` holds `INTEGRATION_TEMPLATES` (a declarative catalog: slack, jira, github, stripe, notion, hubspot — kind, default base URL, auth type, secret label, docs URL) and `call_integration(org_id, integration_id, method, path, ...)`, the only function anywhere allowed to dereference a Secret Manager `secret_ref` to a real credential. Departments call third-party APIs through `call_integration`, never by holding a raw token themselves. Setting up an integration is write-only for the secret: `POST /api/org/{org_id}/integrations` takes a raw `secret_value` exactly once, writes it straight to Secret Manager via `store_secret()`, and returns only the public config — the value is never stored in Firestore, logged, or echoed back.
+
+First real consumer: `departments/engineering_sre/tools.py`'s `notify_slack_channel`, called directly from `on_task_received` (not exposed as an LLM-invokable tool) when an incident is high-severity — "notify Slack on P1/P2" is mechanism, the same reasoning already applied to `publish_message`'s hop-cap and `requires_reply` derivation.
+
 ## A2A — narrow, boundary-only
 
 A2A (`to_a2a()` / `RemoteA2aAgent`, both built into ADK) is used only to expose specific external-facing department agents (Sales and/or Support) as A2A servers for genuinely external callers. It is never used for internal CEO-to-department messaging — that stays on Pub/Sub. See ADR-0004. Don't add A2A anywhere else without a new ADR justifying it.

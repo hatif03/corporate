@@ -3,6 +3,7 @@ from .task import HumanQA, Task, TaskStatus
 from .message import REPLY_OBLIGATING_ACTS, Act, Message
 from .department import TaskResult
 from .trigger import Trigger, TriggerType, Worker, WorkerStatus
+from .integration import Integration, IntegrationAuthType
 
 __all__ = [
     "Agent",
@@ -19,4 +20,6 @@ __all__ = [
     "TriggerType",
     "Worker",
     "WorkerStatus",
+    "Integration",
+    "IntegrationAuthType",
 ]

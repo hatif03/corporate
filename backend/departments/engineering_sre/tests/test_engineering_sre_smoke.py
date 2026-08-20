@@ -64,14 +64,41 @@ async def test_high_severity_incident_flags_human_review():
         patch("app.services.store.log_activity"),
         patch("shared.audit_chain.append_entry"),
         patch("app.services.pubsub_client.publish_message"),
+        patch("departments.engineering_sre.agents.notify_slack_channel", new=AsyncMock(return_value={"posted": True})) as mock_notify,
     ):
         result = await on_task_received("org-test", task)
 
     assert result.needs_human is True
     assert result.data["severity"] == "P1"
     assert result.data["cascade_risk"] == "high"
+    assert mock_notify.called
+    assert mock_notify.call_args.args[0] == "org-test"
 
     # The PII in the task description must never reach the first (triage) call.
     first_call_prompt = mock_turn.call_args_list[0].args[4]
     assert "security@example.com" not in first_call_prompt
     assert "555-000-1234" not in first_call_prompt
+
+
+async def test_low_severity_incident_does_not_notify_slack():
+    task = Task(
+        id="task-3",
+        title="Billing API slow",
+        description="Users report billing-api p99 latency spiking.",
+        task_type="handle_incident",
+        status=TaskStatus.TODO,
+        assignee="engineering_sre",
+        created_by="ceo",
+    )
+    fake = await _fake_run_agent_turn_factory(_TRIAGE_LOW, _CASCADE_LOW)
+    with (
+        patch("departments.engineering_sre.agents.run_agent_turn", new=AsyncMock(side_effect=fake)),
+        patch("app.services.store.update_task"),
+        patch("app.services.store.log_activity"),
+        patch("shared.audit_chain.append_entry"),
+        patch("app.services.pubsub_client.publish_message"),
+        patch("departments.engineering_sre.agents.notify_slack_channel", new=AsyncMock()) as mock_notify,
+    ):
+        await on_task_received("org-test", task)
+
+    assert not mock_notify.called

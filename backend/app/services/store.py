@@ -15,7 +15,18 @@ from typing import Any
 
 from pydantic.alias_generators import to_camel
 
-from app.models import Agent, AgentStatus, CarryingToken, Message, Task, TaskStatus, Trigger, Worker, WorkerStatus
+from app.models import (
+    Agent,
+    AgentStatus,
+    CarryingToken,
+    Integration,
+    Message,
+    Task,
+    TaskStatus,
+    Trigger,
+    Worker,
+    WorkerStatus,
+)
 from app.services.firestore_client import org_collection, org_doc
 
 
@@ -183,3 +194,26 @@ def update_worker(org_id: str, worker_id: str, status: WorkerStatus, result: dic
 
 def list_workers(org_id: str) -> list[Worker]:
     return [Worker(id=d.id, **d.to_dict()) for d in org_collection(org_id, "workers").stream()]
+
+
+# ---- integrations ------------------------------------------------------------
+
+
+def get_integration(org_id: str, integration_id: str) -> Integration | None:
+    snap = org_doc(org_id, "integrations", integration_id).get()
+    if not snap.exists:
+        return None
+    return Integration(id=snap.id, **snap.to_dict())
+
+
+def create_integration(org_id: str, integration: Integration) -> None:
+    data = integration.model_dump(by_alias=True, exclude={"id"})
+    org_doc(org_id, "integrations", integration.id).set(data)
+
+
+def list_integrations(org_id: str) -> list[Integration]:
+    return [Integration(id=d.id, **d.to_dict()) for d in org_collection(org_id, "integrations").stream()]
+
+
+def set_integration_enabled(org_id: str, integration_id: str, enabled: bool) -> None:
+    org_doc(org_id, "integrations", integration_id).update({"enabled": enabled})

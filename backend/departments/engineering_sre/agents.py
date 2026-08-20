@@ -17,6 +17,7 @@ from app.models import Task, TaskResult
 from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
 from departments.engineering_sre.schemas import CascadePrediction, TriageResult
+from departments.engineering_sre.tools import notify_slack_channel
 from shared.privacy_pipeline import redact
 
 DEPARTMENT_ID = "engineering_sre"
@@ -89,6 +90,13 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
     )
 
     needs_human = triage.severity in HIGH_SEVERITY or cascade.cascade_risk == "high"
+
+    if needs_human:
+        await notify_slack_channel(
+            org_id,
+            "#incidents",
+            f"[{triage.severity}] {triage.summary} — cascade risk: {cascade.cascade_risk}",
+        )
 
     return TaskResult(
         success=True,
