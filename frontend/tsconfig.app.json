@@ -22,5 +22,9 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Raw downloaded asset-pack files, not TS/TSX source — Tiled's tileset
+  // format uses a .tsx extension (Tile Set XML) that collides with
+  // TypeScript+JSX's own .tsx convention, so tsc tries to compile them.
+  "exclude": ["src/assets/kenney"]
 }
