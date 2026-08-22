@@ -118,11 +118,19 @@ def audited_task(department_id: str) -> Callable[[OnTaskReceived], OnTaskReceive
 
             if result.needs_human:
                 _ask_human(org_id, task, result.human_question or result.summary, department_id)
+            elif not result.success:
+                # A department can legitimately decline/fail a task without
+                # explicitly asking a question (result.needs_human=False) —
+                # still route it through _ask_human so the reason is never
+                # silently lost: the Tasks UI has nowhere else to show
+                # `result.summary`, and a BLOCKED task with no human_qa entry
+                # is indistinguishable from one that never explained itself.
+                _ask_human(org_id, task, result.summary, department_id)
             else:
                 store.update_task(
                     org_id,
                     task.id,
-                    status=TaskStatus.DONE.value if result.success else TaskStatus.BLOCKED.value,
+                    status=TaskStatus.DONE.value,
                     result=result.data or {},
                 )
 
