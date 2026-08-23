@@ -44,4 +44,28 @@ for role in roles/datastore.user roles/pubsub.publisher roles/pubsub.subscriber 
     --condition=None
 done
 
+echo "== granting Cloud Build's default identity storage read access =="
+# `gcloud run deploy --source .` uploads your source to a per-project GCS
+# bucket for Cloud Build to read. On projects created after Google tightened
+# default service-account IAM (removed the old broad Editor role), the
+# default Compute service account Cloud Build runs as lacks
+# storage.objects.get on that bucket and the deploy fails with a 403 on the
+# uploaded source zip. Grant it once here so deploy.sh doesn't hit it.
+PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role="roles/storage.objectViewer" \
+  --condition=None
+
+echo "== granting Cloud Build's default identity Artifact Registry push access =="
+# Same tightened-IAM story as above: after the build succeeds, Cloud Build
+# pushes the image to the cloud-run-source-deploy Artifact Registry repo as
+# this same default Compute service account. Without this role the deploy
+# fails later, at push time, with "Build failed; check build logs" and no
+# further detail from `gcloud run deploy`.
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role="roles/artifactregistry.writer" \
+  --condition=None
+
 echo "== done. Next: ./deploy.sh =="
