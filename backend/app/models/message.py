@@ -4,6 +4,8 @@ from enum import Enum
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
+from app.models.attachment import Attachment
+
 
 class Act(str, Enum):
     """Speech-act types. request/query/propose obligate a reply; inform/agree/refuse/done are terminal."""
@@ -40,6 +42,7 @@ class Message(BaseModel):
     hops: int = 0
     requires_reply: bool
     needs_human: bool = False
+    attachment: Attachment | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     delivered_at: datetime | None = None
     processed_at: datetime | None = None

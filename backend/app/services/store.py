@@ -19,9 +19,11 @@ from pydantic.alias_generators import to_camel
 from app.models import (
     Agent,
     AgentStatus,
+    Attachment,
     CarryingToken,
     Integration,
     Message,
+    OrgSettings,
     Task,
     TaskStatus,
     Trigger,
@@ -268,3 +270,39 @@ def increment_and_check_gemini_budget(org_id: str, daily_limit: int) -> bool:
     doc_ref.set({"geminiCalls": increment(1)}, merge=True)
     count = doc_ref.get().to_dict()["geminiCalls"]
     return count <= daily_limit
+
+
+# ---- per-org settings (ADR-0013) --------------------------------------------
+
+
+def get_org_settings(org_id: str) -> OrgSettings:
+    """Returns all-defaults (unlimited/fallback) OrgSettings when the org
+    hasn't configured anything yet — there's no seed step for this doc."""
+    snap = org_doc(org_id, "settings", "config").get()
+    if not snap.exists:
+        return OrgSettings()
+    return OrgSettings(**snap.to_dict())
+
+
+def update_org_settings(org_id: str, **fields: Any) -> None:
+    """Same snake_case-in, camelCase-out convention as update_task."""
+    camel_fields = {to_camel(k): v for k, v in fields.items()}
+    camel_fields["updatedAt"] = _now()
+    org_doc(org_id, "settings", "config").set(camel_fields, merge=True)
+
+
+# ---- vision attachments (ADR-0013) ------------------------------------------
+
+
+def set_ceo_pending_attachment(org_id: str, attachment: Attachment | None) -> None:
+    """Stashes the human's dispatched image on the CEO's own agent doc so
+    create_task can pick it up without routing the blob through the LLM's
+    tool-call arguments (see app/adk_agents/tools/universal.py)."""
+    data = attachment.model_dump(by_alias=True) if attachment else None
+    org_doc(org_id, "agents", "ceo").set({"pendingAttachment": data}, merge=True)
+
+
+def get_ceo_pending_attachment(org_id: str) -> Attachment | None:
+    snap = org_doc(org_id, "agents", "ceo").get()
+    data = snap.to_dict().get("pendingAttachment") if snap.exists else None
+    return Attachment(**data) if data else None

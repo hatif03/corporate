@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
+
+from app.models.attachment import Attachment
 
 
 class TaskStatus(str, Enum):
@@ -41,5 +43,9 @@ class Task(BaseModel):
     result: dict[str, Any] | None = None
     created_by: str
     priority: int = 3
+    # Which Gemini tier this task's turn(s) run on — set by the CEO's
+    # create_task call, see ADR-0013.
+    model_tier: Literal["flash", "pro"] = "flash"
+    attachment: Attachment | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
