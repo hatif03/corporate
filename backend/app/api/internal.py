@@ -1,11 +1,13 @@
 """Pub/Sub push target. See docs/adr/0003-firestore-pubsub-for-state-and-messaging.md
 and app/services/dispatch.py for the shared handler this delegates to.
 
-OIDC verification: Cloud Run's own IAM-based push authentication (the
-Pub/Sub push subscription is created with --push-auth-service-account and
-Cloud Run requires authentication) is the primary control — this route does
-not additionally decode the OIDC token itself. If deploying with
---allow-unauthenticated, add explicit token verification here first.
+OIDC verification: the backend is deployed --allow-unauthenticated (Cloud
+Run's own IAM gate is all-or-nothing per service, and /api/org/* must be
+publicly reachable for the browser frontend's Firebase-token auth to ever
+run) — so this router verifies Pub/Sub's OIDC push token itself, via
+require_internal_oidc (app/services/auth.py). The push subscription is
+created with an oidc_token.service_account_email in scripts/seed.py so
+Pub/Sub actually attaches a verifiable token to each push.
 
 Every response is 200, even on a malformed envelope (see ADR-0011): Pub/Sub
 retries push delivery on ANY non-2xx status, not just 5xx, so a genuinely
@@ -19,12 +21,13 @@ from __future__ import annotations
 import base64
 import json
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
 from app.models import Message
+from app.services.auth import require_internal_oidc
 from app.services.dispatch import handle_agent_turn
 
-router = APIRouter(prefix="/internal", tags=["internal"])
+router = APIRouter(prefix="/internal", tags=["internal"], dependencies=[Depends(require_internal_oidc)])
 
 
 @router.post("/agent-turn/{agent_id}")

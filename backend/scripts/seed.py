@@ -45,10 +45,17 @@ def seed_agents(org_id: str) -> list[str]:
 def create_push_subscriptions(org_id: str, agent_ids: list[str]) -> None:
     subscriber = pubsub_v1.SubscriberClient()
     topic_path = subscriber.topic_path(settings.google_cloud_project, settings.corporate_pubsub_topic)
+    # Pub/Sub must attach a verifiable OIDC token to each push so
+    # require_internal_oidc (app/services/auth.py) can check it — the
+    # backend is deployed --allow-unauthenticated, so this token is the
+    # actual access control on /internal/*, not Cloud Run's own IAM gate.
+    push_sa = f"corporate-backend-sa@{settings.google_cloud_project}.iam.gserviceaccount.com"
     for agent_id in agent_ids:
         sub_path = subscriber.subscription_path(settings.google_cloud_project, f"sub-{org_id}-{agent_id}")
+        push_endpoint = f"{settings.corporate_backend_url}/internal/agent-turn/{agent_id}"
         push_config = pubsub_v1.types.PushConfig(
-            push_endpoint=f"{settings.corporate_backend_url}/internal/agent-turn/{agent_id}",
+            push_endpoint=push_endpoint,
+            oidc_token=pubsub_v1.types.PushConfig.OidcToken(service_account_email=push_sa, audience=push_endpoint),
         )
         try:
             subscriber.create_subscription(
@@ -61,7 +68,13 @@ def create_push_subscriptions(org_id: str, agent_ids: list[str]) -> None:
             )
             print(f"created subscription {sub_path}")
         except AlreadyExists:
-            print(f"subscription {sub_path} already exists, skipping")
+            subscriber.update_subscription(
+                request={
+                    "subscription": {"name": sub_path, "push_config": push_config},
+                    "update_mask": {"paths": ["push_config"]},
+                }
+            )
+            print(f"subscription {sub_path} already existed, updated push_config")
 
 
 if __name__ == "__main__":

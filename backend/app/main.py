@@ -4,10 +4,11 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import audit, integrations, internal, memory, org, triggers, workers
 from app.config import settings
-from app.services.auth import require_org_member
+from app.services.auth import require_internal_oidc, require_org_member
 
 
 @asynccontextmanager
@@ -28,11 +29,28 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Corporate backend", lifespan=lifespan)
 
-# /internal/* is authenticated separately (Pub/Sub push OIDC / Cloud
-# Scheduler IAM, see app/api/internal.py) — never wired with
-# require_org_member, which expects an end-user Firebase ID token.
+# The frontend (Firebase Hosting) and this backend (Cloud Run) are different
+# origins, so the browser needs an explicit CORS allow — auth itself is
+# still enforced by require_org_member (Bearer token, not cookies, so no
+# allow_credentials needed here).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        f"https://{settings.google_cloud_project}.web.app",
+        f"https://{settings.google_cloud_project}.firebaseapp.com",
+        "http://localhost:5173",
+    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# /internal/* is authenticated separately (Pub/Sub push / Cloud Scheduler
+# OIDC tokens via require_internal_oidc, see app/services/auth.py) — never
+# wired with require_org_member, which expects an end-user Firebase ID token.
+# internal.router carries its own dependency already; triggers.internal_router
+# doesn't, so it's added here.
 app.include_router(internal.router)
-app.include_router(triggers.internal_router)
+app.include_router(triggers.internal_router, dependencies=[Depends(require_internal_oidc)])
 
 # Every /api/org/{org_id}/* router requires the caller to be an
 # authenticated, verified member of that org — wired once here at the
@@ -47,6 +65,10 @@ app.include_router(memory.router, dependencies=_org_scoped_dependency)
 app.include_router(integrations.router, dependencies=_org_scoped_dependency)
 
 
-@app.get("/healthz")
+# Not /healthz: on the shared *.run.app domain, Google's own front end
+# intercepts that exact path for its own synthetic monitoring before the
+# request ever reaches this container — confirmed live (every other path,
+# including a nonexistent one, correctly reaches FastAPI).
+@app.get("/api/healthz")
 async def healthz() -> dict:
     return {"status": "ok", "project": settings.google_cloud_project}
