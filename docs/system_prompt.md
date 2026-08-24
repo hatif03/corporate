@@ -25,7 +25,8 @@ Corporate is a hosted, cloud-native multi-agent web app: a 2D office-floor UI wh
 
 ## State and messaging
 
-- **Firestore** holds all durable state: `orgs/{orgId}/{agents,tasks,messages,activity_log,board,triggers,workers,agent_sessions,audit_log,integrations,departments}`. Always namespaced under `orgs/{orgId}` — this project is multi-tenant even when only `orgs/demo` is seeded. (ADR-0003)
+- **Firestore** holds all durable state: `orgs/{orgId}/{agents,tasks,messages,activity_log,board,triggers,workers,agent_sessions,audit_log,integrations,departments,settings}`. Always namespaced under `orgs/{orgId}` — this project is multi-tenant even when only `orgs/demo` is seeded. (ADR-0003)
+- **Cloud Storage** holds the one kind of durable state Firestore can't (binary vision attachments) — `app/services/storage_client.py` is the only module allowed to import `google.cloud.storage` directly, mirroring `firestore_client.py`'s rule for Firestore. Task/Message docs only ever hold the resulting `gs://` URI, never raw bytes. (ADR-0013)
 - **Pub/Sub** carries live inter-agent messages on a single `agent-bus` topic, one push subscription per agent. Message schema:
   ```jsonc
   { "id", "conversation", "in_reply_to", "from", "to", "act": "request|inform|propose|query|agree|refuse|done",

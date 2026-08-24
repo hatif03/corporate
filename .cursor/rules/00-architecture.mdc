@@ -33,6 +33,7 @@ Corporate is a hosted, cloud-native multi-agent web app: a 2D office-floor UI wh
 ## State and messaging
 
 - Firestore holds all durable state, namespaced `orgs/{orgId}/...`.
+- Cloud Storage holds vision attachments (binaries Firestore can't) — `app/services/storage_client.py` is the only module allowed to import `google.cloud.storage`; Task/Message docs only ever hold the `gs://` URI.
 - Pub/Sub carries live inter-agent messages on one `agent-bus` topic, one push subscription per agent. Message schema: `{id, conversation, in_reply_to, from, to, act, subject, body, hops, requires_reply, needs_human, created_at}` where `act` is `request|inform|propose|query|agree|refuse|done`.
 - `publish_message()` is the only place that increments `hops` or derives `requires_reply`. Loop cap: `hops > 12` blocks the publish and flags the task for human review.
 - Never touch Firestore/Pub-Sub/integrations directly from a department — always through the platform client.
