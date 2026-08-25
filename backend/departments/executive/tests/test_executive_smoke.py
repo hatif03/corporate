@@ -24,8 +24,9 @@ async def test_on_task_received_publishes_digest_and_announcement():
         Agent(id="finance_audit", name="Finance & Audit", department="finance_audit"),
     ]
 
-    async def fake_run_agent_turn(agent, session_service, org_id, agent_id, prompt):
-        return {"executive_digest": _DIGEST_TEXT, "executive_announcement": _ANNOUNCEMENT_TEXT}[agent.name]
+    async def fake_run_agent_turn(agent, session_service, org_id, agent_id, prompt, attachment=None):
+        stage = agent.name.rsplit("_", 1)[0]
+        return {"executive_digest": _DIGEST_TEXT, "executive_announcement": _ANNOUNCEMENT_TEXT}[stage]
 
     task = Task(
         id="task-1",

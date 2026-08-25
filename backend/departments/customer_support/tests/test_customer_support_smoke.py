@@ -18,8 +18,8 @@ def _make_task(description: str) -> Task:
 
 
 async def test_grounded_low_urgency_reply_succeeds_without_human():
-    async def fake(agent, session_service, org_id, agent_id, prompt):
-        if agent.name == "support_intent_classifier":
+    async def fake(agent, session_service, org_id, agent_id, prompt, attachment=None):
+        if agent.name.rsplit("_", 1)[0] == "support_intent_classifier":
             return json.dumps({"intent": "billing", "urgency": "low"})
         return json.dumps(
             {
@@ -42,8 +42,8 @@ async def test_grounded_low_urgency_reply_succeeds_without_human():
 
 
 async def test_hallucinated_citation_escalates_to_human():
-    async def fake(agent, session_service, org_id, agent_id, prompt):
-        if agent.name == "support_intent_classifier":
+    async def fake(agent, session_service, org_id, agent_id, prompt, attachment=None):
+        if agent.name.rsplit("_", 1)[0] == "support_intent_classifier":
             return json.dumps({"intent": "billing", "urgency": "low"})
         return json.dumps(
             {
@@ -66,8 +66,8 @@ async def test_hallucinated_citation_escalates_to_human():
 
 
 async def test_high_urgency_ticket_escalates_even_when_grounded():
-    async def fake(agent, session_service, org_id, agent_id, prompt):
-        if agent.name == "support_intent_classifier":
+    async def fake(agent, session_service, org_id, agent_id, prompt, attachment=None):
+        if agent.name.rsplit("_", 1)[0] == "support_intent_classifier":
             return json.dumps({"intent": "technical", "urgency": "high"})
         return json.dumps(
             {

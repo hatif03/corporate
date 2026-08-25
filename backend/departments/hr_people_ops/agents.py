@@ -9,11 +9,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from google.adk.agents.llm_agent import LlmAgent
-
-from app.adk_agents.factory import department_callbacks, department_tools
+from app.adk_agents.factory import build_tiered_stage_agents
 from app.adk_agents.runtime import run_agent_turn
-from app.config import settings
 from app.models import Task, TaskResult
 from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
@@ -30,19 +27,14 @@ def _load_prompt(name: str) -> str:
     return (_PROMPTS_DIR / f"{name}.md").read_text(encoding="utf-8")
 
 
-def _build_stage_agent(name: str, prompt_file: str) -> LlmAgent:
-    return LlmAgent(
-        name=name,
-        model=settings.corporate_gemini_model,
-        instruction=_load_prompt(prompt_file),
-        description=f"HR & People Ops pipeline stage: {name}",
-        tools=department_tools(),
-        **department_callbacks(),
+def _build_stage_agents(name: str, prompt_file: str) -> dict:
+    return build_tiered_stage_agents(
+        name, instruction=_load_prompt(prompt_file), description=f"HR & People Ops pipeline stage: {name}"
     )
 
 
-intake_agent = _build_stage_agent("hr_intake_classifier", "intake_classifier")
-handbook_qa_agent = _build_stage_agent("hr_handbook_qa", "handbook_qa")
+intake_agents = _build_stage_agents("hr_intake_classifier", "intake_classifier")
+handbook_qa_agents = _build_stage_agents("hr_handbook_qa", "handbook_qa")
 
 _session_service = FirestoreSessionService()
 
@@ -58,15 +50,17 @@ def _extract_json(text: str) -> dict:
 
 @audited_task(DEPARTMENT_ID)
 async def on_task_received(org_id: str, task: Task) -> TaskResult:
+    tier = task.model_tier  # ADR-0013: the CEO picks flash/pro at create_task time
     redaction = redact(task.description)
 
     classification_text = await run_agent_turn(
-        intake_agent, _session_service, org_id, DEPARTMENT_ID, redaction.redacted_text
+        intake_agents[tier], _session_service, org_id, DEPARTMENT_ID, redaction.redacted_text,
+        attachment=task.attachment,
     )
     classification = RequestClassification(**_extract_json(classification_text))
 
     qa_input = f"HANDBOOK:\n{HR_HANDBOOK}\n\nREQUEST ({classification.request_type}): {classification.summary}"
-    answer = await run_agent_turn(handbook_qa_agent, _session_service, org_id, DEPARTMENT_ID, qa_input)
+    answer = await run_agent_turn(handbook_qa_agents[tier], _session_service, org_id, DEPARTMENT_ID, qa_input)
 
     needs_human = classification.request_type == "leave_request"
 

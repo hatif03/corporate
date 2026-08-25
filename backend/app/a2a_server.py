@@ -22,7 +22,11 @@ from google.adk.runners import Runner
 
 from app.config import settings
 from app.services.session_service import FirestoreSessionService
-from departments.sales_crm.agents import sales_pipeline
+from departments.sales_crm.agents import sales_pipeline_by_tier
+
+# External A2A callers never go through create_task's model_tier (ADR-0013)
+# — always the flash tier here.
+sales_pipeline = sales_pipeline_by_tier["flash"]
 
 _runner = Runner(
     agent=sales_pipeline,

@@ -9,12 +9,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from google.adk.agents.llm_agent import LlmAgent
 from google.adk.agents.sequential_agent import SequentialAgent
 
-from app.adk_agents.factory import department_callbacks, department_tools
+from app.adk_agents.factory import build_tiered_stage_agents
 from app.adk_agents.runtime import run_agent_turn
-from app.config import settings
 from app.models import Task, TaskResult
 from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
@@ -29,47 +27,45 @@ def _load_prompt(name: str) -> str:
     return (_PROMPTS_DIR / f"{name}.md").read_text(encoding="utf-8")
 
 
-lead_qualifier_agent = LlmAgent(
-    name="sales_lead_qualifier",
-    model=settings.corporate_gemini_model,
-    instruction=_load_prompt("lead_qualifier"),
+_lead_qualifier_agents = build_tiered_stage_agents(
+    "sales_lead_qualifier", instruction=_load_prompt("lead_qualifier"),
     description="Sales & CRM pipeline stage: lead qualification",
-    tools=department_tools(),
-    **department_callbacks(),
 )
 
-deal_strategist_agent = LlmAgent(
-    name="sales_deal_strategist",
-    model=settings.corporate_gemini_model,
-    instruction=_load_prompt("deal_strategist"),
+_deal_strategist_agents = build_tiered_stage_agents(
+    "sales_deal_strategist", instruction=_load_prompt("deal_strategist"),
     description="Sales & CRM pipeline stage: deal strategy (pricing_guardrail-enforced)",
-    tools=department_tools(extra_tools=[pricing_guardrail]),
-    **department_callbacks(),
+    extra_tools=[pricing_guardrail],
 )
 
-outreach_drafter_agent = LlmAgent(
-    name="sales_outreach_drafter",
-    model=settings.corporate_gemini_model,
-    instruction=_load_prompt("outreach_drafter"),
+_outreach_drafter_agents = build_tiered_stage_agents(
+    "sales_outreach_drafter", instruction=_load_prompt("outreach_drafter"),
     description="Sales & CRM pipeline stage: outreach draft",
-    tools=department_tools(),
-    **department_callbacks(),
 )
 
-# This IS the department's directly-invokable ADK agent tree — used both as
-# root_agent (for A2A exposure, see app/main.py) and as what
-# on_task_received actually runs internally, unlike the other departments.
-sales_pipeline = SequentialAgent(
-    name="sales_crm_pipeline",
-    sub_agents=[lead_qualifier_agent, deal_strategist_agent, outreach_drafter_agent],
-)
+# One full SequentialAgent pipeline per tier — sub_agents can't be swapped
+# per-call on a shared singleton (see ADR-0013 / app/adk_agents/factory.py's
+# build_tiered_stage_agents docstring), so this department builds two whole
+# pipelines instead of one. sales_pipeline_by_tier["flash"] is also this
+# department's root_agent (for A2A exposure, see departments/sales_crm/__init__.py
+# and app/main.py) — external A2A callers never go through create_task's
+# model_tier, so they always get the safe/cheap default.
+sales_pipeline_by_tier = {
+    tier: SequentialAgent(
+        name=f"sales_crm_pipeline_{tier}",
+        sub_agents=[_lead_qualifier_agents[tier], _deal_strategist_agents[tier], _outreach_drafter_agents[tier]],
+    )
+    for tier in ("flash", "pro")
+}
 
 _session_service = FirestoreSessionService()
 
 
 @audited_task(DEPARTMENT_ID)
 async def on_task_received(org_id: str, task: Task) -> TaskResult:
+    tier = task.model_tier  # ADR-0013: the CEO picks flash/pro at create_task time
     outreach_draft = await run_agent_turn(
-        sales_pipeline, _session_service, org_id, DEPARTMENT_ID, task.description
+        sales_pipeline_by_tier[tier], _session_service, org_id, DEPARTMENT_ID, task.description,
+        attachment=task.attachment,
     )
     return TaskResult(success=True, summary=outreach_draft, data={"draft": outreach_draft}, needs_human=False)

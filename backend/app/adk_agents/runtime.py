@@ -14,6 +14,7 @@ from google.adk.sessions.base_session_service import BaseSessionService
 from google.genai import types
 
 from app.config import settings
+from app.models import Attachment
 from app.services import store
 
 
@@ -23,17 +24,19 @@ async def run_agent_turn(
     org_id: str,
     agent_id: str,
     prompt: str,
+    attachment: Attachment | None = None,
 ) -> str:
     """Sends `prompt` to `agent` as a new user turn in the (org_id, agent_id)
     session and returns the concatenated text of its final response.
 
     Every agent turn in the app — CEO and every department pipeline stage
     alike — goes through this one function, so it's the single choke point
-    for the daily Gemini call budget (ADR-0012). A department turn's
+    for the daily Gemini call budget (ADR-0012/0013). A department turn's
     RuntimeError here is caught by @audited_task's failure path (ADR-0011)
     and surfaced as a blocked task, not a silent failure or a runaway bill.
     """
-    if not store.increment_and_check_gemini_budget(org_id, settings.corporate_daily_gemini_call_limit):
+    effective_limit = store.get_org_settings(org_id).daily_gemini_call_limit or settings.corporate_daily_gemini_call_limit
+    if not store.increment_and_check_gemini_budget(org_id, effective_limit):
         raise RuntimeError("daily Gemini call budget exceeded")
 
     runner = Runner(
@@ -42,7 +45,12 @@ async def run_agent_turn(
         app_name="corporate",
         auto_create_session=True,
     )
-    message = types.Content(role="user", parts=[types.Part(text=prompt)])
+    parts = [types.Part(text=prompt)]
+    if attachment:
+        # Vertex AI reads the gs:// object directly — no download/re-encode
+        # needed here. See ADR-0013.
+        parts.append(types.Part.from_uri(file_uri=attachment.gcs_uri, mime_type=attachment.mime_type))
+    message = types.Content(role="user", parts=parts)
 
     final_text_parts: list[str] = []
     async for event in runner.run_async(user_id=org_id, session_id=agent_id, new_message=message):

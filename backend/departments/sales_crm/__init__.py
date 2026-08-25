@@ -1,5 +1,5 @@
 from departments.base import DepartmentSpec
-from departments.sales_crm.agents import DEPARTMENT_ID, on_task_received, sales_pipeline
+from departments.sales_crm.agents import DEPARTMENT_ID, on_task_received, sales_pipeline_by_tier
 
 SPEC = DepartmentSpec(
     department_id=DEPARTMENT_ID,
@@ -12,7 +12,9 @@ SPEC = DepartmentSpec(
     accepted_task_types=["qualify_lead"],
     memory_namespace="sales_crm",
     on_task_received=on_task_received,
-    root_agent=sales_pipeline,
+    # External A2A callers never go through create_task's model_tier
+    # (ADR-0013) — always the flash tier for them.
+    root_agent=sales_pipeline_by_tier["flash"],
     a2a_exposed=True,
 )
 

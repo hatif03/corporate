@@ -6,8 +6,8 @@ from departments.hr_people_ops.agents import on_task_received
 
 
 async def test_policy_question_does_not_need_human():
-    async def fake(agent, session_service, org_id, agent_id, prompt):
-        if agent.name == "hr_intake_classifier":
+    async def fake(agent, session_service, org_id, agent_id, prompt, attachment=None):
+        if agent.name.rsplit("_", 1)[0] == "hr_intake_classifier":
             return json.dumps({"request_type": "policy_question", "summary": "asking about remote work policy"})
         return "You can work remotely up to 3 days a week by default."
 
@@ -33,8 +33,8 @@ async def test_policy_question_does_not_need_human():
 
 
 async def test_leave_request_always_needs_human():
-    async def fake(agent, session_service, org_id, agent_id, prompt):
-        if agent.name == "hr_intake_classifier":
+    async def fake(agent, session_service, org_id, agent_id, prompt, attachment=None):
+        if agent.name.rsplit("_", 1)[0] == "hr_intake_classifier":
             return json.dumps({"request_type": "leave_request", "summary": "requesting 5 days PTO next month"})
         return "Standard PTO accrual is 15 days/year; this needs HR approval."
 

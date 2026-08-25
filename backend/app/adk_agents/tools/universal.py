@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from typing import Literal
 
 from google.adk.tools.tool_context import ToolContext
 
@@ -55,6 +56,8 @@ async def create_task(
     assignee: str,
     tool_context: ToolContext,
     priority: int = 3,
+    model_tier: Literal["flash", "pro"] = "flash",
+    include_attachment: bool = True,
 ) -> dict:
     """Create a new task card on the kanban board and assign it to a department.
 
@@ -64,8 +67,18 @@ async def create_task(
         task_type: the task-type string the assignee department accepts.
         assignee: the department id to assign this task to.
         priority: 1 (highest) to 5 (lowest), default 3.
+        model_tier: which Gemini tier the assignee's turn(s) should run on —
+            "flash" (default, fast/cheap) or "pro" (slower, more capable —
+            use for genuinely complex reasoning, not routine work).
+        include_attachment: whether to carry the image attached to the
+            current dispatch (if any) onto this task. Defaults to true — a
+            human dispatch is usually about one thing, so every task from it
+            gets the image unless you set this false for a task you know is
+            unrelated (e.g. the dispatch attached a screenshot for one bug
+            but you're also creating an unrelated marketing task).
     """
     org_id, agent_id = _ids(tool_context)
+    attachment = store.get_ceo_pending_attachment(org_id) if include_attachment else None
     task = Task(
         id=f"task-{uuid.uuid4().hex[:10]}",
         title=title,
@@ -75,6 +88,8 @@ async def create_task(
         assignee=assignee,
         created_by=agent_id,
         priority=priority,
+        model_tier=model_tier,
+        attachment=attachment,
     )
     store.create_task(org_id, task)
     # conversation == task.id is the correlation id the receiving department

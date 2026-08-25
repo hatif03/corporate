@@ -7,11 +7,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from google.adk.agents.llm_agent import LlmAgent
-
-from app.adk_agents.factory import department_callbacks, department_tools
+from app.adk_agents.factory import build_tiered_stage_agents
 from app.adk_agents.runtime import run_agent_turn
-from app.config import settings
 from app.models import Task, TaskResult
 from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
@@ -29,21 +26,16 @@ def _load_prompt(name: str) -> str:
     return (_PROMPTS_DIR / f"{name}.md").read_text(encoding="utf-8")
 
 
-def _build_stage_agent(name: str, prompt_file: str) -> LlmAgent:
-    return LlmAgent(
-        name=name,
-        model=settings.corporate_gemini_model,
-        instruction=_load_prompt(prompt_file),
-        description=f"Finance & Audit pipeline stage: {name}",
-        tools=department_tools(),
-        **department_callbacks(),
+def _build_stage_agents(name: str, prompt_file: str) -> dict:
+    return build_tiered_stage_agents(
+        name, instruction=_load_prompt(prompt_file), description=f"Finance & Audit pipeline stage: {name}"
     )
 
 
-doc_intel_agent = _build_stage_agent("finance_doc_intel", "doc_intel")
-accountant_agent = _build_stage_agent("finance_accountant", "accountant")
-fraud_agent = _build_stage_agent("finance_fraud", "fraud")
-explainer_agent = _build_stage_agent("finance_explainer", "explainer")
+doc_intel_agents = _build_stage_agents("finance_doc_intel", "doc_intel")
+accountant_agents = _build_stage_agents("finance_accountant", "accountant")
+fraud_agents = _build_stage_agents("finance_fraud", "fraud")
+explainer_agents = _build_stage_agents("finance_explainer", "explainer")
 
 # All four stages share the department's own session (session_id ==
 # DEPARTMENT_ID) so their status/trace all land on the same office-floor
@@ -64,15 +56,18 @@ def _extract_json(text: str) -> dict:
 
 @audited_task(DEPARTMENT_ID)
 async def on_task_received(org_id: str, task: Task) -> TaskResult:
-    # Stage 1: document intelligence
+    tier = task.model_tier  # ADR-0013: the CEO picks flash/pro at create_task time
+    # Stage 1: document intelligence — the only stage that sees a vision
+    # attachment (an invoice image), consistent with ADR-0006's fraud-stage
+    # isolation: the fraud stage below still only ever sees signals JSON.
     doc_intel_text = await run_agent_turn(
-        doc_intel_agent, _session_service, org_id, DEPARTMENT_ID, task.description
+        doc_intel_agents[tier], _session_service, org_id, DEPARTMENT_ID, task.description, attachment=task.attachment
     )
     invoice = InvoiceFields(**_extract_json(doc_intel_text))
 
     # Stage 2: accountant classification (never shown to the fraud stage)
     classification = await run_agent_turn(
-        accountant_agent, _session_service, org_id, DEPARTMENT_ID, invoice.model_dump_json()
+        accountant_agents[tier], _session_service, org_id, DEPARTMENT_ID, invoice.model_dump_json()
     )
 
     # Stage 3a: deterministic fraud signals, zero LLM calls
@@ -80,7 +75,7 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
 
     # Stage 3b: fraud LLM call sees ONLY the signals JSON — see the module docstring
     fraud_text = await run_agent_turn(
-        fraud_agent, _session_service, org_id, DEPARTMENT_ID, fraud_signals.model_dump_json()
+        fraud_agents[tier], _session_service, org_id, DEPARTMENT_ID, fraud_signals.model_dump_json()
     )
     fraud_verdict = _extract_json(fraud_text)
     risk_score = int(fraud_verdict.get("risk_score", 0))
@@ -101,7 +96,7 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
         }
     )
     explanation = await run_agent_turn(
-        explainer_agent, _session_service, org_id, DEPARTMENT_ID, explainer_input
+        explainer_agents[tier], _session_service, org_id, DEPARTMENT_ID, explainer_input
     )
 
     return TaskResult(

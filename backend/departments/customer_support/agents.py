@@ -8,11 +8,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from google.adk.agents.llm_agent import LlmAgent
-
-from app.adk_agents.factory import department_callbacks, department_tools
+from app.adk_agents.factory import build_tiered_stage_agents
 from app.adk_agents.runtime import run_agent_turn
-from app.config import settings
 from app.models import Task, TaskResult
 from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
@@ -29,19 +26,14 @@ def _load_prompt(name: str) -> str:
     return (_PROMPTS_DIR / f"{name}.md").read_text(encoding="utf-8")
 
 
-def _build_stage_agent(name: str, prompt_file: str) -> LlmAgent:
-    return LlmAgent(
-        name=name,
-        model=settings.corporate_gemini_model,
-        instruction=_load_prompt(prompt_file),
-        description=f"Customer Support pipeline stage: {name}",
-        tools=department_tools(),
-        **department_callbacks(),
+def _build_stage_agents(name: str, prompt_file: str) -> dict:
+    return build_tiered_stage_agents(
+        name, instruction=_load_prompt(prompt_file), description=f"Customer Support pipeline stage: {name}"
     )
 
 
-intent_agent = _build_stage_agent("support_intent_classifier", "intent_classifier")
-response_agent = _build_stage_agent("support_response_drafter", "response_drafter")
+intent_agents = _build_stage_agents("support_intent_classifier", "intent_classifier")
+response_agents = _build_stage_agents("support_response_drafter", "response_drafter")
 
 _session_service = FirestoreSessionService()
 
@@ -57,14 +49,17 @@ def _extract_json(text: str) -> dict:
 
 @audited_task(DEPARTMENT_ID)
 async def on_task_received(org_id: str, task: Task) -> TaskResult:
+    tier = task.model_tier  # ADR-0013: the CEO picks flash/pro at create_task time
+    # Stage 1 is the only one that sees a vision attachment (e.g. a
+    # screenshot of the issue a customer sent in).
     classification_text = await run_agent_turn(
-        intent_agent, _session_service, org_id, DEPARTMENT_ID, task.description
+        intent_agents[tier], _session_service, org_id, DEPARTMENT_ID, task.description, attachment=task.attachment
     )
     classification = IntentClassification(**_extract_json(classification_text))
 
     kb_article = KNOWLEDGE_BASE.get(classification.intent, DEFAULT_KB_NOTE)
     draft_input = f"KB ARTICLE:\n{kb_article}\n\nCUSTOMER MESSAGE:\n{task.description}"
-    draft_text = await run_agent_turn(response_agent, _session_service, org_id, DEPARTMENT_ID, draft_input)
+    draft_text = await run_agent_turn(response_agents[tier], _session_service, org_id, DEPARTMENT_ID, draft_input)
     draft = DraftResponse(**_extract_json(draft_text))
 
     grounded = True

@@ -10,11 +10,8 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
-from google.adk.agents.llm_agent import LlmAgent
-
-from app.adk_agents.factory import department_callbacks, department_tools
+from app.adk_agents.factory import build_tiered_stage_agents
 from app.adk_agents.runtime import run_agent_turn
-from app.config import settings
 from app.models import Task, TaskResult, TaskStatus
 from app.services import store
 from app.services.session_service import FirestoreSessionService
@@ -30,13 +27,10 @@ def _load_prompt(name: str) -> str:
     return (_PROMPTS_DIR / f"{name}.md").read_text(encoding="utf-8")
 
 
-metrics_agent = LlmAgent(
-    name="analytics_metrics_analyst",
-    model=settings.corporate_gemini_model,
+metrics_agents = build_tiered_stage_agents(
+    "analytics_metrics_analyst",
     instruction=_load_prompt("metrics_analyst"),
     description="Product & Data Analytics pipeline stage: metrics analyst",
-    tools=department_tools(),
-    **department_callbacks(),
 )
 
 _session_service = FirestoreSessionService()
@@ -60,11 +54,14 @@ def _build_chart_spec(counts: dict[str, dict[str, int]]) -> ChartSpec:
 
 @audited_task(DEPARTMENT_ID)
 async def on_task_received(org_id: str, task: Task) -> TaskResult:
+    tier = task.model_tier  # ADR-0013: the CEO picks flash/pro at create_task time
+    # No attachment wiring here: this department answers questions about
+    # deterministic Firestore counts, not user-facing content.
     counts = _counts_by_department_and_status(org_id)
     chart = _build_chart_spec(counts)
 
     prompt = json.dumps({"question": task.description, "counts": counts})
-    answer = await run_agent_turn(metrics_agent, _session_service, org_id, DEPARTMENT_ID, prompt)
+    answer = await run_agent_turn(metrics_agents[tier], _session_service, org_id, DEPARTMENT_ID, prompt)
 
     return TaskResult(
         success=True,

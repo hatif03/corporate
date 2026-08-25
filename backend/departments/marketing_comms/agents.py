@@ -7,11 +7,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from google.adk.agents.llm_agent import LlmAgent
-
-from app.adk_agents.factory import department_callbacks, department_tools
+from app.adk_agents.factory import build_tiered_stage_agents
 from app.adk_agents.runtime import run_agent_turn
-from app.config import settings
 from app.models import Task, TaskResult
 from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
@@ -27,28 +24,26 @@ def _load_prompt(name: str) -> str:
     return (_PROMPTS_DIR / f"{name}.md").read_text(encoding="utf-8")
 
 
-def _build_stage_agent(name: str, prompt_file: str) -> LlmAgent:
-    return LlmAgent(
-        name=name,
-        model=settings.corporate_gemini_model,
-        instruction=_load_prompt(prompt_file),
-        description=f"Marketing & Comms pipeline stage: {name}",
-        tools=department_tools(),
-        **department_callbacks(),
+def _build_stage_agents(name: str, prompt_file: str) -> dict:
+    return build_tiered_stage_agents(
+        name, instruction=_load_prompt(prompt_file), description=f"Marketing & Comms pipeline stage: {name}"
     )
 
 
-brief_agent = _build_stage_agent("marketing_brief_intake", "brief_intake")
-copy_agent = _build_stage_agent("marketing_copy_drafter", "copy_drafter")
-scheduler_agent = _build_stage_agent("marketing_scheduler", "scheduler")
+brief_agents = _build_stage_agents("marketing_brief_intake", "brief_intake")
+copy_agents = _build_stage_agents("marketing_copy_drafter", "copy_drafter")
+scheduler_agents = _build_stage_agents("marketing_scheduler", "scheduler")
 
 _session_service = FirestoreSessionService()
 
 
 @audited_task(DEPARTMENT_ID)
 async def on_task_received(org_id: str, task: Task) -> TaskResult:
-    brief = await run_agent_turn(brief_agent, _session_service, org_id, DEPARTMENT_ID, task.description)
-    copy = await run_agent_turn(copy_agent, _session_service, org_id, DEPARTMENT_ID, brief)
+    tier = task.model_tier  # ADR-0013: the CEO picks flash/pro at create_task time
+    brief = await run_agent_turn(
+        brief_agents[tier], _session_service, org_id, DEPARTMENT_ID, task.description, attachment=task.attachment
+    )
+    copy = await run_agent_turn(copy_agents[tier], _session_service, org_id, DEPARTMENT_ID, brief)
 
     verified = await vote_aspects({"copy": copy}, ASPECTS)
 
@@ -62,7 +57,7 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
             human_question=f"Marketing copy needs a rewrite — {failed_reasons}",
         )
 
-    schedule_suggestion = await run_agent_turn(scheduler_agent, _session_service, org_id, DEPARTMENT_ID, copy)
+    schedule_suggestion = await run_agent_turn(scheduler_agents[tier], _session_service, org_id, DEPARTMENT_ID, copy)
 
     return TaskResult(
         success=True,

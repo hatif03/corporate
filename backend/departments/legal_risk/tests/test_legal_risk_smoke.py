@@ -26,8 +26,8 @@ def _judge_response(lens: str, conflict: bool, claim: str = "", evidence_quote: 
 
 
 async def test_grounded_conflict_is_reported_and_needs_human():
-    async def fake(agent, session_service, org_id, agent_id, prompt):
-        if agent.name == "legal_judge_customer_promise":
+    async def fake(agent, session_service, org_id, agent_id, prompt, attachment=None):
+        if agent.name.rsplit("_", 1)[0] == "legal_judge_customer_promise":
             return _judge_response(
                 "customer_promise",
                 conflict=True,
@@ -60,8 +60,8 @@ async def test_grounded_conflict_is_reported_and_needs_human():
 
 
 async def test_hallucinated_evidence_quote_is_dropped_not_reported():
-    async def fake(agent, session_service, org_id, agent_id, prompt):
-        if agent.name == "legal_judge_legal_compliance":
+    async def fake(agent, session_service, org_id, agent_id, prompt, attachment=None):
+        if agent.name.rsplit("_", 1)[0] == "legal_judge_legal_compliance":
             return _judge_response(
                 "legal_compliance",
                 conflict=True,
@@ -93,7 +93,7 @@ async def test_hallucinated_evidence_quote_is_dropped_not_reported():
 
 
 async def test_no_conflicts_at_all_is_clean():
-    async def fake(agent, session_service, org_id, agent_id, prompt):
+    async def fake(agent, session_service, org_id, agent_id, prompt, attachment=None):
         return _NO_CONFLICT
 
     with (

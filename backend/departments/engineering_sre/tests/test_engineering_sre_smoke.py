@@ -12,12 +12,13 @@ _POSTMORTEM = "Draft postmortem: incident summarized, recommend immediate invest
 
 
 async def _fake_run_agent_turn_factory(triage_json: str, cascade_json: str):
-    async def fake(agent, session_service, org_id, agent_id, prompt):
+    async def fake(agent, session_service, org_id, agent_id, prompt, attachment=None):
+        stage = agent.name.rsplit("_", 1)[0]  # strips build_tiered_stage_agents' _flash/_pro suffix
         return {
             "sre_triage": triage_json,
             "sre_cascade_predictor": cascade_json,
             "sre_postmortem_drafter": _POSTMORTEM,
-        }[agent.name]
+        }[stage]
 
     return fake
 

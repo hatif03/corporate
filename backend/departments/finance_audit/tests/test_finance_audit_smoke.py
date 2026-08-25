@@ -22,15 +22,20 @@ _FRAUD_RESPONSE = json.dumps({"risk_score": 15, "justification": "no signals fir
 _EXPLAINER_RESPONSE = "This invoice looks routine and does not need human review."
 
 
-async def _fake_run_agent_turn(agent, session_service, org_id, agent_id, prompt):
+def _stage_name(agent) -> str:
+    """Strips the _flash/_pro tier suffix build_tiered_stage_agents adds."""
+    return agent.name.rsplit("_", 1)[0]
+
+
+async def _fake_run_agent_turn(agent, session_service, org_id, agent_id, prompt, attachment=None):
     # Route by which prompt-file's instruction the agent was built with —
-    # simplest is to key off agent.name, set in agents.py's _build_stage_agent.
+    # simplest is to key off agent.name, set in agents.py's _build_stage_agents.
     return {
         "finance_doc_intel": _DOC_INTEL_RESPONSE,
         "finance_accountant": _ACCOUNTANT_RESPONSE,
         "finance_fraud": _FRAUD_RESPONSE,
         "finance_explainer": _EXPLAINER_RESPONSE,
-    }[agent.name]
+    }[_stage_name(agent)]
 
 
 async def test_on_task_received_clean_invoice_completes_without_human_review():
@@ -72,8 +77,9 @@ async def test_on_task_received_flags_high_fraud_risk_for_human_review():
         created_by="ceo",
     )
 
-    async def fake_run_agent_turn_high_risk(agent, session_service, org_id, agent_id, prompt):
-        if agent.name == "finance_doc_intel":
+    async def fake_run_agent_turn_high_risk(agent, session_service, org_id, agent_id, prompt, attachment=None):
+        stage = _stage_name(agent)
+        if stage == "finance_doc_intel":
             return json.dumps(
                 {
                     "vendor": "Shell Co",
@@ -83,9 +89,9 @@ async def test_on_task_received_flags_high_fraud_risk_for_human_review():
                     "line_item_amounts": [10000.00],
                 }
             )
-        if agent.name == "finance_fraud":
+        if stage == "finance_fraud":
             return json.dumps({"risk_score": 85, "justification": "round number and single line item"})
-        if agent.name == "finance_accountant":
+        if stage == "finance_accountant":
             return _ACCOUNTANT_RESPONSE
         return "This invoice needs human review due to a high fraud risk score."
 

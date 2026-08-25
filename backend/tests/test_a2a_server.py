@@ -18,6 +18,9 @@ def test_agent_card_is_served_and_describes_the_sales_pipeline():
 
     assert response.status_code == 200
     card = response.json()
-    assert card["name"] == "sales_crm_pipeline"
+    # _flash suffix is real: external A2A callers always get the flash-tier
+    # pipeline singleton, never model_tier="pro" (ADR-0013) — see
+    # departments/sales_crm/__init__.py's root_agent.
+    assert card["name"] == "sales_crm_pipeline_flash"
     assert "skills" in card and len(card["skills"]) > 0
     assert card["capabilities"]["streaming"] is False

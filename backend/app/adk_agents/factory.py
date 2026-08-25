@@ -6,6 +6,7 @@ instantiates LlmAgent/SequentialAgent/ParallelAgent directly — see
 from __future__ import annotations
 
 from google.adk.agents.llm_agent import LlmAgent
+from google.adk.tools.google_search_agent_tool import create_google_search_agent, GoogleSearchAgentTool
 
 from app.adk_agents import callbacks
 from app.adk_agents.tools.universal import (
@@ -40,8 +41,20 @@ duplicate work. Keep task descriptions concrete and self-contained — a
 department agent only sees what you write in the task, not this conversation.
 """
 
-_CEO_TOOLS = [create_task, write_board, send_message, list_agents_tool, list_tasks_tool, update_task_status]
-_DEPARTMENT_UNIVERSAL_TOOLS = [send_message, read_memory, write_memory, set_note]
+# The raw google_search built-in tool can't be combined with custom function
+# tools on the same agent — GoogleSearchAgentTool is ADK's own documented
+# workaround: a search-only sub-agent wrapped as a regular AgentTool, so it
+# drops into _CEO_TOOLS/_DEPARTMENT_UNIVERSAL_TOOLS like any other tool.
+# Always runs on flash regardless of the parent turn's tier (see
+# build_tiered_stage_agents below) — its job is "call google_search, return
+# results," not reasoning.
+_google_search_sub_agent = create_google_search_agent(model=settings.corporate_gemini_model)
+google_search_tool = GoogleSearchAgentTool(agent=_google_search_sub_agent)
+
+_CEO_TOOLS = [
+    create_task, write_board, send_message, list_agents_tool, list_tasks_tool, update_task_status, google_search_tool,
+]
+_DEPARTMENT_UNIVERSAL_TOOLS = [send_message, read_memory, write_memory, set_note, google_search_tool]
 
 _UNIVERSAL_CALLBACKS = {
     "before_agent_callback": callbacks.before_agent_callback,
@@ -49,6 +62,13 @@ _UNIVERSAL_CALLBACKS = {
     "after_tool_callback": callbacks.after_tool_callback,
     "after_agent_callback": callbacks.after_agent_callback,
 }
+
+# One LlmAgent per Gemini tier — a department's create_task-time model_tier
+# choice (ADR-0013) picks which singleton to run a turn on. Agents are
+# module-level singletons built once at import time (see departments/*), so
+# mutating a shared singleton's .model per-turn would race across concurrent
+# orgs on Cloud Run; two pre-built singletons sidesteps that entirely.
+_MODEL_BY_TIER = {"flash": settings.corporate_gemini_model, "pro": settings.corporate_gemini_model_pro}
 
 
 def build_ceo_agent() -> LlmAgent:
@@ -72,3 +92,23 @@ def department_callbacks() -> dict:
     """Every department stage attaches the same lifecycle callbacks so its
     status/trace shows up on the office floor identically to the CEO's."""
     return dict(_UNIVERSAL_CALLBACKS)
+
+
+def build_tiered_stage_agents(
+    name: str, instruction: str, description: str, extra_tools: list | None = None
+) -> dict[str, LlmAgent]:
+    """One LlmAgent singleton per Gemini tier for a single pipeline stage,
+    sharing instruction/tools/callbacks — a department's on_task_received
+    picks agents_by_tier[task.model_tier] instead of mutating a shared
+    singleton's .model at runtime. See ADR-0013."""
+    return {
+        tier: LlmAgent(
+            name=f"{name}_{tier}",
+            model=model,
+            instruction=instruction,
+            description=description,
+            tools=department_tools(extra_tools),
+            **department_callbacks(),
+        )
+        for tier, model in _MODEL_BY_TIER.items()
+    }
