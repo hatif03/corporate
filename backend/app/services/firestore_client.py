@@ -24,3 +24,10 @@ def org_collection(org_id: str, collection: str) -> firestore.CollectionReferenc
 
 def org_doc(org_id: str, collection: str, doc_id: str) -> firestore.DocumentReference:
     return org_collection(org_id, collection).document(doc_id)
+
+
+def increment(n: int) -> firestore.Increment:
+    """A server-side atomic increment field value — for use in .set(merge=True)
+    or .update() calls elsewhere, so callers never need their own
+    google.cloud.firestore import for this."""
+    return firestore.Increment(n)

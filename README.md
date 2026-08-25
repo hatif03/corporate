@@ -67,8 +67,8 @@ Deployed separately from the main backend (its own Cloud Run service) so `/.well
 
 See `/docs/ARCHITECTURE.md` for the full system diagram and component list. `/infra/deploy/setup.sh` (one-time: enable APIs, create Firestore + the `agent-bus` topic, create the backend service account) and `/infra/deploy/deploy.sh` (build + deploy both Cloud Run services, wire Pub/Sub push IAM, seed Firestore, deploy the frontend) are ready to run once billing is enabled on the target project:
 ```bash
-PROJECT_ID=corporate-506020 REGION=us-central1 ./infra/deploy/setup.sh
-PROJECT_ID=corporate-506020 REGION=us-central1 ./infra/deploy/deploy.sh
+PROJECT_ID=project-f0b6b4ce-541f-43ff-9f7 REGION=us-central1 ./infra/deploy/setup.sh
+PROJECT_ID=project-f0b6b4ce-541f-43ff-9f7 REGION=us-central1 ./infra/deploy/deploy.sh
 ```
 Not yet run against a live project as of this commit — see the ADRs for why (billing wasn't available on any account during development).
 

@@ -28,7 +28,7 @@ from app.models import (
     Worker,
     WorkerStatus,
 )
-from app.services.firestore_client import org_collection, org_doc
+from app.services.firestore_client import increment, org_collection, org_doc
 
 
 def _now() -> datetime:
@@ -246,3 +246,25 @@ def get_member_role(org_id: str, uid: str) -> str | None:
     if not snap.exists:
         return None
     return snap.to_dict().get("role", "member")
+
+
+# ---- Gemini cost guard (ADR-0012) -------------------------------------------
+
+
+def increment_and_check_gemini_budget(org_id: str, daily_limit: int) -> bool:
+    """Increments today's Gemini-call counter (via Firestore's atomic
+    Increment, so the write itself can't lose a concurrent increment) and
+    returns whether it's still within daily_limit.
+
+    ponytail: the increment is atomic but the follow-up read isn't part of
+    the same transaction, so under concurrent calls the read can reflect a
+    slightly different count than this call's own increment. Fine for a
+    circuit breaker meant to catch gross runaway behavior (hundreds of
+    calls), not for exact billing enforcement — upgrade to a Firestore
+    transaction if this ever needs to be a hard, race-free cap.
+    """
+    day_key = _now().strftime("%Y-%m-%d")
+    doc_ref = org_doc(org_id, "usage", day_key)
+    doc_ref.set({"geminiCalls": increment(1)}, merge=True)
+    count = doc_ref.get().to_dict()["geminiCalls"]
+    return count <= daily_limit

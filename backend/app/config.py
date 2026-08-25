@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     # deployed as its own Cloud Run service — see ADR-0004. Empty in local dev.
     corporate_a2a_sales_url: str = ""
 
+    # Circuit breaker on raw Gemini call volume/spend — the hop-cap in
+    # pubsub_client.py bounds message ping-pong, not this. See ADR-0012.
+    corporate_daily_gemini_call_limit: int = 500
+
     local_dev: bool = False
 
     model_config = {"env_file": ".env"}

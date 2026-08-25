@@ -4,7 +4,7 @@
 # IAM binding, seeds Firestore, and deploys the frontend to Firebase
 # Hosting. Run setup.sh once first. Idempotent — safe to re-run.
 #
-# Usage: PROJECT_ID=corporate-506020 REGION=us-central1 ./deploy.sh
+# Usage: PROJECT_ID=project-f0b6b4ce-541f-43ff-9f7 REGION=us-central1 ./deploy.sh
 
 set -euo pipefail
 

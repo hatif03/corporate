@@ -5,7 +5,7 @@
 # deploy.sh. Requires billing to already be enabled on the project (see
 # docs/adr/0001-cloud-native-hosted-architecture.md).
 #
-# Usage: PROJECT_ID=corporate-506020 REGION=us-central1 ./setup.sh
+# Usage: PROJECT_ID=project-f0b6b4ce-541f-43ff-9f7 REGION=us-central1 ./setup.sh
 
 set -euo pipefail
 

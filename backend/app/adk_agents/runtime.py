@@ -13,6 +13,9 @@ from google.adk.runners import Runner
 from google.adk.sessions.base_session_service import BaseSessionService
 from google.genai import types
 
+from app.config import settings
+from app.services import store
+
 
 async def run_agent_turn(
     agent: BaseAgent,
@@ -22,7 +25,17 @@ async def run_agent_turn(
     prompt: str,
 ) -> str:
     """Sends `prompt` to `agent` as a new user turn in the (org_id, agent_id)
-    session and returns the concatenated text of its final response."""
+    session and returns the concatenated text of its final response.
+
+    Every agent turn in the app — CEO and every department pipeline stage
+    alike — goes through this one function, so it's the single choke point
+    for the daily Gemini call budget (ADR-0012). A department turn's
+    RuntimeError here is caught by @audited_task's failure path (ADR-0011)
+    and surfaced as a blocked task, not a silent failure or a runaway bill.
+    """
+    if not store.increment_and_check_gemini_budget(org_id, settings.corporate_daily_gemini_call_limit):
+        raise RuntimeError("daily Gemini call budget exceeded")
+
     runner = Runner(
         agent=agent,
         session_service=session_service,
