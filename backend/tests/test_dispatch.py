@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.models import Act, Message
+from app.models import Act, Attachment, Message
 from app.services.dispatch import handle_agent_turn
 
 
@@ -68,6 +68,26 @@ async def test_unexpected_exception_is_caught_and_logged_not_raised():
         await handle_agent_turn("org-test", "finance_audit", _fake_message())
 
     assert mock_log.call_args.args[2] == "dispatch-failed"
+
+
+async def test_ceo_turn_with_attachment_stashes_it_and_forwards_to_the_turn():
+    """ADR-0013: a dispatched image reaches the CEO's own turn directly, and
+    is stashed for create_task to pick up without going through the LLM's
+    tool-call arguments."""
+    attachment = Attachment(mime_type="image/png", gcs_uri="gs://bucket/x")
+
+    with (
+        patch("app.services.dispatch.store.mark_message_processed", return_value=True),
+        patch("app.services.dispatch.get_department", return_value=None),
+        patch("app.services.dispatch.store.set_ceo_pending_attachment") as mock_stash,
+        patch("app.services.dispatch.run_agent_turn", new=AsyncMock(return_value="ok")) as mock_turn,
+    ):
+        await handle_agent_turn(
+            "org-test", "ceo", _fake_message(to="ceo", act=Act.INFORM, requires_reply=False, attachment=attachment)
+        )
+
+    mock_stash.assert_called_once_with("org-test", attachment)
+    assert mock_turn.call_args.kwargs["attachment"] == attachment
 
 
 async def test_ceo_turn_exception_is_caught_and_logged_not_raised():

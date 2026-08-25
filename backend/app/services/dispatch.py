@@ -48,7 +48,13 @@ async def handle_agent_turn(org_id: str, agent_id: str, message: Message) -> Non
 
         if agent_id == "ceo":
             prompt = f"Message from {message.from_} ({message.act.value}) — {message.subject}: {message.body}"
-            await run_agent_turn(_ceo_agent, _session_service, org_id, "ceo", prompt)
+            if message.attachment:
+                # Stash it so create_task (app/adk_agents/tools/universal.py)
+                # can attach it to whichever tasks the CEO creates this turn,
+                # without routing the blob through the LLM's own tool-call
+                # arguments. See ADR-0013.
+                store.set_ceo_pending_attachment(org_id, message.attachment)
+            await run_agent_turn(_ceo_agent, _session_service, org_id, "ceo", prompt, attachment=message.attachment)
             return
 
         store.log_activity(

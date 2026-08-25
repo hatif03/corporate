@@ -16,7 +16,7 @@ from functools import lru_cache
 from google.cloud import pubsub_v1
 
 from app.config import settings
-from app.models import Act, REPLY_OBLIGATING_ACTS, Message
+from app.models import Act, REPLY_OBLIGATING_ACTS, Attachment, Message
 from app.services import store
 
 HOP_LIMIT = 12
@@ -63,6 +63,7 @@ def publish_message(
     conversation: str | None = None,
     in_reply_to: str | None = None,
     needs_human: bool = False,
+    attachment: Attachment | None = None,
 ) -> Message:
     """Publish one inter-agent message. Raises LoopTerminatedError instead of
     publishing once a conversation's hop count exceeds HOP_LIMIT."""
@@ -91,6 +92,7 @@ def publish_message(
         hops=hops,
         requires_reply=act in REPLY_OBLIGATING_ACTS,
         needs_human=needs_human,
+        attachment=attachment,
     )
 
     payload = message.model_dump_json(by_alias=True).encode("utf-8")
