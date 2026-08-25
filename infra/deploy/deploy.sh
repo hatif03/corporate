@@ -29,7 +29,7 @@ gcloud run deploy "${BACKEND_SERVICE}" \
   --project="${PROJECT_ID}" \
   --allow-unauthenticated \
   --service-account="${SA_EMAIL}" \
-  --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_GENAI_USE_VERTEXAI=1,VERTEX_LOCATION=${REGION}"
+  --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_GENAI_USE_VERTEXAI=1,VERTEX_LOCATION=${REGION},CORPORATE_ATTACHMENTS_BUCKET=${PROJECT_ID}-attachments"
 
 BACKEND_URL="$(gcloud run services describe "${BACKEND_SERVICE}" --region="${REGION}" --project="${PROJECT_ID}" --format='value(status.url)')"
 echo "backend URL: ${BACKEND_URL}"

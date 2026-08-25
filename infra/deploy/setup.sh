@@ -22,6 +22,7 @@ gcloud services enable \
   aiplatform.googleapis.com \
   cloudscheduler.googleapis.com \
   secretmanager.googleapis.com \
+  storage.googleapis.com \
   --project="${PROJECT_ID}"
 
 echo "== Firestore (native mode) =="
@@ -31,6 +32,11 @@ gcloud firestore databases create --location="${REGION}" --project="${PROJECT_ID
 echo "== Pub/Sub topic =="
 gcloud pubsub topics create agent-bus --project="${PROJECT_ID}" || \
   echo "topic agent-bus already exists, skipping"
+
+echo "== vision attachments bucket (ADR-0013) =="
+ATTACHMENTS_BUCKET="${PROJECT_ID}-attachments"
+gcloud storage buckets create "gs://${ATTACHMENTS_BUCKET}" --location="${REGION}" --project="${PROJECT_ID}" || \
+  echo "bucket gs://${ATTACHMENTS_BUCKET} already exists, skipping"
 
 echo "== service account =="
 gcloud iam service-accounts create "${SA_NAME}" \
@@ -44,6 +50,20 @@ for role in roles/datastore.user roles/pubsub.publisher roles/pubsub.subscriber 
     --condition=None
 done
 
+echo "== granting the backend write access to the attachments bucket =="
+gcloud storage buckets add-iam-policy-binding "gs://${ATTACHMENTS_BUCKET}" \
+  --member="serviceAccount:${SA_EMAIL}" \
+  --role="roles/storage.objectAdmin"
+
+echo "== granting Vertex AI's service agent read access to the attachments bucket =="
+# types.Part.from_uri() (app/adk_agents/runtime.py) hands Gemini a gs:// URI
+# directly — Vertex AI reads that object as its own service identity, not as
+# corporate-backend-sa, so it needs its own grant here (ADR-0013).
+PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
+gcloud storage buckets add-iam-policy-binding "gs://${ATTACHMENTS_BUCKET}" \
+  --member="serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-aiplatform.iam.gserviceaccount.com" \
+  --role="roles/storage.objectViewer"
+
 echo "== granting Cloud Build's default identity storage read access =="
 # `gcloud run deploy --source .` uploads your source to a per-project GCS
 # bucket for Cloud Build to read. On projects created after Google tightened
@@ -51,7 +71,7 @@ echo "== granting Cloud Build's default identity storage read access =="
 # default Compute service account Cloud Build runs as lacks
 # storage.objects.get on that bucket and the deploy fails with a 403 on the
 # uploaded source zip. Grant it once here so deploy.sh doesn't hit it.
-PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
+# PROJECT_NUMBER is already set above, for the Vertex AI attachments-bucket grant.
 gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
   --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
   --role="roles/storage.objectViewer" \
