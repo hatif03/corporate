@@ -17,11 +17,17 @@ A2A_SERVICE="corporate-a2a-sales"
 cd "$(dirname "$0")/../../backend"
 
 echo "== deploying ${BACKEND_SERVICE} (first pass, to learn its URL) =="
+# --allow-unauthenticated: /api/org/* must be publicly reachable so the
+# browser frontend's Firebase-token auth (require_org_member) ever runs at
+# all — Cloud Run's own IAM gate is all-or-nothing per service, so it can't
+# also selectively protect /internal/*. /internal/* protects itself instead,
+# via require_internal_oidc (see app/services/auth.py and
+# app/api/internal.py's module docstring).
 gcloud run deploy "${BACKEND_SERVICE}" \
   --source . \
   --region="${REGION}" \
   --project="${PROJECT_ID}" \
-  --no-allow-unauthenticated \
+  --allow-unauthenticated \
   --service-account="${SA_EMAIL}" \
   --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_GENAI_USE_VERTEXAI=1,VERTEX_LOCATION=${REGION}"
 
@@ -39,7 +45,16 @@ echo "== deploying ${A2A_SERVICE} (same image, different entrypoint) =="
 # $PORT would otherwise reach uvicorn as the literal string "$PORT" instead
 # of being expanded — route through /bin/sh -c explicitly so it actually
 # expands, same as the Dockerfile's own shell-form CMD does for the main service.
-gcloud run deploy "${A2A_SERVICE}" \
+# MSYS2_ARG_CONV_EXCL="--command=": on Git Bash for Windows, "--command=/bin/sh"
+# is one argv token whose /bin/sh half looks like a POSIX absolute path, so it
+# gets silently rewritten to a Windows path (e.g.
+# "--command=C:/Program Files/Git/usr/bin/sh") before gcloud ever sees it,
+# which Cloud Run then fails to exec inside the Linux container. Match on the
+# "--command=" prefix (matching must cover the whole argv token, not just the
+# embedded path) — the blanket MSYS_NO_PATHCONV=1 / "*" also breaks gcloud's
+# own internal path resolution (its Windows wrapper is itself a bash script).
+# No-op on real bash/Linux.
+MSYS2_ARG_CONV_EXCL="--command=" gcloud run deploy "${A2A_SERVICE}" \
   --source . \
   --region="${REGION}" \
   --project="${PROJECT_ID}" \
@@ -56,16 +71,33 @@ gcloud run services update "${BACKEND_SERVICE}" \
   --project="${PROJECT_ID}" \
   --update-env-vars="CORPORATE_A2A_SALES_URL=${A2A_URL}"
 
-echo "== granting Pub/Sub's service agent permission to invoke the backend =="
-PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
-gcloud run services add-iam-policy-binding "${BACKEND_SERVICE}" \
+echo "== redeploying ${A2A_SERVICE} with its own URL set (a2a_server.py uses it to build the agent-card host/protocol, otherwise it advertises localhost) =="
+gcloud run services update "${A2A_SERVICE}" \
   --region="${REGION}" \
   --project="${PROJECT_ID}" \
+  --update-env-vars="CORPORATE_A2A_SALES_URL=${A2A_URL}"
+
+echo "== granting Pub/Sub's service agent permission to mint OIDC tokens as the backend's own service account =="
+# The backend is --allow-unauthenticated (Cloud Run's own IAM gate is not
+# in play), so Pub/Sub doesn't need roles/run.invoker here — it needs to be
+# able to mint an OIDC token AS corporate-backend-sa to attach to each push
+# request, which require_internal_oidc then verifies on arrival.
+PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
+gcloud iam service-accounts add-iam-policy-binding "${SA_EMAIL}" \
+  --project="${PROJECT_ID}" \
   --member="serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-pubsub.iam.gserviceaccount.com" \
-  --role="roles/run.invoker"
+  --role="roles/iam.serviceAccountTokenCreator"
 
 echo "== seeding Firestore agents + Pub/Sub push subscriptions =="
 GOOGLE_CLOUD_PROJECT="${PROJECT_ID}" CORPORATE_BACKEND_URL="${BACKEND_URL}" python scripts/seed.py
+
+echo "== deploying Firestore security rules =="
+# Client reads go straight to Firestore (see frontend/src/lib/platformClient.ts's
+# onSnapshot calls) — without these, the default deny-all rules on a fresh
+# project block every client read silently (onSnapshot has no error
+# callback here), which looks exactly like "agents never got seeded" even
+# when they did.
+(cd .. && firebase deploy --only firestore:rules --project "${PROJECT_ID}")
 
 echo "== deploying frontend to Firebase Hosting =="
 (cd ../frontend && npm run build)

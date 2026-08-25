@@ -34,11 +34,17 @@ _runner = Runner(
 _public_url = settings.corporate_a2a_sales_url
 _host = _public_url.replace("https://", "").replace("http://", "").rstrip("/") or "localhost"
 _protocol = "https" if _public_url.startswith("https") else "http"
+# to_a2a always bakes a literal ":{port}" into the advertised agent-card URL
+# (f"{protocol}://{host}:{port}/", no default-port omission) — 443 is the
+# real public port Cloud Run serves HTTPS on, so this is the port that makes
+# the advertised URL actually reachable, not the container's internal
+# uvicorn --port (see deploy.sh), which callers never talk to directly.
+_public_port = 443 if _protocol == "https" else 8001
 
 app = to_a2a(
     sales_pipeline,
     host=_host,
-    port=8001,
+    port=_public_port,
     protocol=_protocol,
     runner=_runner,
 )
