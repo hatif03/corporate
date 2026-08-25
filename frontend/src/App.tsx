@@ -8,6 +8,7 @@ import { TriggersView } from './views/triggers/TriggersView'
 import { WorkersView } from './views/workers/WorkersView'
 import { MemoryView } from './views/memory/MemoryView'
 import { GraphView } from './views/graph/GraphView'
+import { SettingsView } from './views/settings/SettingsView'
 import { watchAgents, watchTasks } from './lib/platformClient'
 import { signInWithGoogle, signOutUser, watchAuthState } from './lib/authClient'
 import type { Agent, Task } from './lib/types'
@@ -15,7 +16,7 @@ import type { User } from 'firebase/auth'
 
 const ORG_ID = import.meta.env.VITE_ORG_ID ?? 'demo'
 
-type Tab = 'monitor' | 'tasks' | 'askme' | 'activity' | 'triggers' | 'workers' | 'memory' | 'graph'
+type Tab = 'monitor' | 'tasks' | 'askme' | 'activity' | 'triggers' | 'workers' | 'memory' | 'graph' | 'settings'
 
 function AskMeTabLabel({ pendingCount }: { pendingCount: number }) {
   return (
@@ -61,6 +62,7 @@ function App() {
     { id: 'workers', label: 'Workers' },
     { id: 'memory', label: 'Memory' },
     { id: 'graph', label: 'Graph' },
+    { id: 'settings', label: 'Settings' },
   ]
 
   return (
@@ -97,6 +99,7 @@ function App() {
       {tab === 'workers' && <WorkersView orgId={ORG_ID} />}
       {tab === 'memory' && <MemoryView orgId={ORG_ID} agents={agents} />}
       {tab === 'graph' && <GraphView orgId={ORG_ID} agents={agents} />}
+      {tab === 'settings' && <SettingsView orgId={ORG_ID} />}
     </div>
   )
 }

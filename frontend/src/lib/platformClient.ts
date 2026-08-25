@@ -145,6 +145,14 @@ async function del(path: string): Promise<unknown> {
   return res.json()
 }
 
+async function get(path: string): Promise<unknown> {
+  const res = await fetch(`${BACKEND_URL}${path}`, { headers: await authHeaders() })
+  if (!res.ok) {
+    throw new Error(`${path} failed: ${res.status} ${await res.text()}`)
+  }
+  return res.json()
+}
+
 export function watchTriggers(orgId: string, onChange: (triggers: Trigger[]) => void): () => void {
   return onSnapshot(orgCollection(orgId, 'triggers'), (snap) => {
     onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Trigger))
@@ -180,8 +188,16 @@ export function stopWorker(orgId: string, workerId: string): Promise<unknown> {
   return post(`/api/org/${orgId}/workers/${workerId}/stop`, {})
 }
 
-export function dispatchGoal(orgId: string, text: string): Promise<unknown> {
-  return post(`/api/org/${orgId}/dispatch`, { text })
+export function dispatchGoal(
+  orgId: string,
+  text: string,
+  attachment?: { dataB64: string; mimeType: string },
+): Promise<unknown> {
+  return post(`/api/org/${orgId}/dispatch`, {
+    text,
+    attachment_data_b64: attachment?.dataB64 ?? null,
+    attachment_mime_type: attachment?.mimeType ?? null,
+  })
 }
 
 export function answerQuestion(
@@ -191,4 +207,16 @@ export function answerQuestion(
   questionIndex = 0,
 ): Promise<unknown> {
   return post(`/api/org/${orgId}/tasks/${taskId}/answer`, { answer, question_index: questionIndex })
+}
+
+export interface OrgSettings {
+  dailyGeminiCallLimit: number | null
+}
+
+export function getSettings(orgId: string): Promise<OrgSettings> {
+  return get(`/api/org/${orgId}/settings`) as Promise<OrgSettings>
+}
+
+export function updateSettings(orgId: string, dailyGeminiCallLimit: number | null): Promise<OrgSettings> {
+  return post(`/api/org/${orgId}/settings`, { daily_gemini_call_limit: dailyGeminiCallLimit }) as Promise<OrgSettings>
 }
