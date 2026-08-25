@@ -13,6 +13,7 @@ never write a snake_case key directly.
 from datetime import datetime, timezone
 from typing import Any
 
+from google.api_core.exceptions import Conflict
 from pydantic.alias_generators import to_camel
 
 from app.models import (
@@ -136,6 +137,20 @@ def save_message(org_id: str, message: Message) -> None:
 def list_messages(org_id: str, limit: int = 200) -> list[Message]:
     query = org_collection(org_id, "messages").order_by("createdAt", direction="DESCENDING").limit(limit)
     return [Message(id=d.id, **d.to_dict()) for d in query.stream()]
+
+
+def mark_message_processed(org_id: str, agent_id: str, message_id: str) -> bool:
+    """Atomic check-and-set: True the first time this (agent, message) pair
+    is seen, False on redelivery. Pub/Sub is at-least-once delivery, so this
+    is what makes handle_agent_turn idempotent — see ADR-0011. Uses
+    Firestore's native create() (raises Conflict if the doc already exists)
+    rather than a read-then-write check, which would race under concurrent
+    redelivery."""
+    try:
+        org_doc(org_id, "processed_messages", f"{agent_id}:{message_id}").create({"processedAt": _now()})
+        return True
+    except Conflict:
+        return False
 
 
 # ---- activity log ------------------------------------------------------------

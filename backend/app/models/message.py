@@ -44,5 +44,3 @@ class Message(BaseModel):
     delivered_at: datetime | None = None
     processed_at: datetime | None = None
     pubsub_message_id: str | None = None
-
-    model_config = {"populate_by_name": True}

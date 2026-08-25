@@ -19,7 +19,7 @@ from typing import Awaitable, Callable
 
 from google.adk.agents.base_agent import BaseAgent
 
-from app.models import Act, Task, TaskResult, TaskStatus
+from app.models import Act, HumanQA, Task, TaskResult, TaskStatus
 from app.services import pubsub_client, store
 from shared import audit_chain
 
@@ -47,18 +47,65 @@ class DepartmentSpec:
     # its stage agents directly in on_task_received instead.
 
 
+def _ask_human(org_id: str, task: Task, question: str, department_id: str) -> None:
+    """Append a real HumanQA entry to the task and mark it BLOCKED pending an
+    answer — used both when a department deliberately asks for human input
+    and when it fails outright (see ADR-0011). Without this, has_pending_human_qa
+    was true but task.human_qa stayed empty, so POST /tasks/{id}/answer had
+    nothing to index into."""
+    qa_list = [*task.human_qa, HumanQA(q=question, asked_by=department_id)]
+    store.update_task(
+        org_id,
+        task.id,
+        status=TaskStatus.BLOCKED.value,
+        has_pending_human_qa=True,
+        human_qa=[qa.model_dump(by_alias=True, mode="json") for qa in qa_list],
+    )
+
+
 def audited_task(department_id: str) -> Callable[[OnTaskReceived], OnTaskReceived]:
     """Wraps a department's on_task_received: appends a tamper-evident audit
     entry, updates the task's Firestore status, and sends the reply message
     back to the requester. Departments never call audit_chain or
     pubsub_client.publish_message directly for this — this decorator is the
-    only place that does."""
+    only place that does.
+
+    Also the only place that catches a department's failure (ADR-0011): a
+    department raising — a Gemini timeout, malformed LLM JSON, whatever —
+    never propagates to a bare 500 (which would leave the task stuck at
+    DOING forever and tell Pub/Sub to retry indefinitely). It's caught,
+    audited as a failure, surfaced to a human via the same Ask-me path as a
+    deliberate needs_human result, and the requester gets a real reply
+    instead of silence."""
 
     def decorator(fn: OnTaskReceived) -> OnTaskReceived:
         @functools.wraps(fn)
         async def wrapper(org_id: str, task: Task) -> TaskResult:
             store.update_task(org_id, task.id, status=TaskStatus.DOING.value)
-            result = await fn(org_id, task)
+
+            try:
+                result = await fn(org_id, task)
+            except Exception as exc:  # noqa: BLE001 - a department failure must never crash the dispatch path
+                audit_chain.append_entry(
+                    org_id=org_id,
+                    department_id=department_id,
+                    task_id=task.id,
+                    actor=department_id,
+                    action="on_task_received_failed",
+                    payload={"error": str(exc)},
+                )
+                store.log_activity(org_id, department_id, "task-failed", f"task {task.id} failed: {exc}")
+                _ask_human(org_id, task, f"This task failed to process: {exc}. Needs human review.", department_id)
+                pubsub_client.publish_message(
+                    org_id=org_id,
+                    from_agent=department_id,
+                    to=task.created_by,
+                    act=Act.REFUSE,
+                    subject=f"Re: {task.title}",
+                    body=f"Failed: {exc}",
+                    needs_human=True,
+                )
+                return TaskResult(success=False, summary=f"Failed: {exc}", needs_human=True)
 
             audit_chain.append_entry(
                 org_id=org_id,
@@ -70,12 +117,7 @@ def audited_task(department_id: str) -> Callable[[OnTaskReceived], OnTaskReceive
             )
 
             if result.needs_human:
-                store.update_task(
-                    org_id,
-                    task.id,
-                    status=TaskStatus.BLOCKED.value,
-                    has_pending_human_qa=True,
-                )
+                _ask_human(org_id, task, result.human_question or result.summary, department_id)
             else:
                 store.update_task(
                     org_id,
