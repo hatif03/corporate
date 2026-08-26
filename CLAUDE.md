@@ -15,3 +15,4 @@ The file above is the canonical source of truth for every architectural conventi
 - Scaffolding a new department: use the `new-department` skill in `.claude/skills/`
 - ADK conventions reference: `.claude/skills/google-adk-python/SKILL.md`
 - Every architectural decision has a record in `/docs/adr/` — read the relevant ones before touching Pub/Sub routing, session persistence, A2A, or the fraud/verification pipelines.
+- `/docs/PROJECT_HISTORY.md` is the full chronological narrative tying every ADR together — what was built, what was seriously explored and deliberately not built, and why. Read it for "how did we get here," not just "what's the rule."

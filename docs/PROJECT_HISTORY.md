@@ -1,0 +1,489 @@
+# Project history — decisions, explorations, and what we let go
+
+This is the narrative companion to `/docs/adr/` — the ADRs are the
+authoritative, per-decision record (context/decision/alternatives/
+consequences); this document is the connective story across all of them,
+plus the things that never became a numbered ADR (UI passes, research
+spikes that led nowhere, deployment debugging) but were real work with real
+reasoning behind it. Read this for "how did we get here and why"; read the
+ADRs for "what exactly did we decide and what's the precise tradeoff."
+
+Corporate is a hosted multi-agent web app built for the **All Things
+Agentic** hackathon (track: The Fortified Enterprise Fleet, deadline
+2026-08-31): departments of autonomous AI employees working on a 2D office
+floor, coordinated by a CEO agent, visible through a "Command Center"
+dashboard. Everything below happened inside that constraint set: hosted
+(not desktop), Gemini-via-Vertex-AI only, Google ADK only, a hard deadline.
+
+## Phase 0 — foundations
+
+The very first decisions were about *shape*, before any department existed:
+
+- **Hosted, not desktop** (ADR-0001). An early direction modeled Corporate
+  as a local app spawning agent processes on the user's own machine, with a
+  thin cloud-sync layer bolted on just to technically touch Google Cloud.
+  Rejected — the hackathon needs a real hosted URL and *load-bearing* Google
+  Cloud usage, not peripheral. A "desktop for dev, cloud for submission"
+  hybrid was also considered and rejected as duplicated effort with no
+  concrete feature to justify it.
+- **Python/ADK only, no polyglot departments** (ADR-0002). Each department
+  could in principle pick its own best-fit language. Rejected in favor of
+  one language, one framework, one Firestore/Pub-Sub client — a coherent
+  stack scores better against "Architectural Discipline" than a patchwork,
+  and Python has ADK's most mature SDK anyway.
+- **Firestore for state, Pub/Sub for messaging** (ADR-0003). A Firestore-only
+  design (agents polling an inbox collection) was considered and rejected —
+  polling doesn't fit Cloud Run's request-driven scaling, and either wastes
+  cost idling or adds latency. Pub/Sub push, one topic + per-agent filtered
+  subscriptions, won. A mechanical hop-cap (`hops > 12`) and mechanical
+  `requires_reply` derivation were chosen over trusting an LLM's own
+  judgment about whether a reply is owed — cheap insurance against an agent
+  plausibly deciding to ping-pong forever.
+- **A2A at the external boundary only, never internally** (ADR-0004). ADK
+  has first-class A2A support, and it would be possible to route all
+  internal CEO→department messaging over it. Rejected — no external,
+  cross-vendor, opaque-agent problem exists internally, and A2A's
+  request/response shape fits Cloud Run worse than Pub/Sub's push/fan-out
+  for that traffic. Skipping A2A entirely was also considered, but the
+  narrow use — exposing Sales/Support as real A2A servers for genuinely
+  external callers — was kept because it gives a real "Fortified Enterprise
+  Fleet" trust-boundary story instead of ignoring a protocol ADK explicitly
+  built for exactly this seam.
+- **One `DepartmentSpec` contract for every department** (ADR-0005). The
+  alternative — each department wiring its own Firestore/Pub-Sub access as
+  needed — was rejected outright as the exact "everyone reinvents their own
+  plumbing" risk a fixed contract exists to prevent. `on_task_received` is
+  the *only* entrypoint the platform ever calls, wrapped in `@audited_task`
+  for audit logging and failure containment.
+- **Ponytail enforcement phasing** (ADR-0008). `lite` while the three core
+  department designs were being established (getting a working end-to-end
+  loop mattered more than minimality yet), moving to `full` once building
+  the from-scratch wider roster (five to six new departments is exactly
+  where over-engineering risk compounds). `ultra` was never on the table,
+  given the deadline.
+
+## Phase 1–3 — core departments, then the full roster
+
+Built in order: **Finance & Audit** and a minimal frontend first (proving
+the CEO↔department loop over real Pub/Sub), then **Engineering & SRE** and
+**Legal & Risk**, then **Office of the CEO** (digest agent) and **Sales &
+CRM** (the one department exposed over live A2A), then **Triggers &
+Workers** (schedule/webhook triggers, ephemeral one-off workers), then **HR
+& People Ops** and **Customer Support**, then **Marketing & Comms** and
+**Product & Data Analytics** — completing all 9 originally planned
+departments.
+
+Two structural decisions came out of building the first three:
+
+- **Fraud detection stays Gemini-only; independence comes from structure,
+  not model diversity** (ADR-0006). A second LLM provider dedicated to
+  fraud detection was evaluated and rejected — the project's hard
+  Gemini-only constraint stands, and the added integration/cost/latency of
+  a second provider for one narrow stage wasn't worth it. Instead, Stage 2
+  (fraud judgment) is a *fresh* Gemini call that only ever sees Stage 1's
+  deterministic signal JSON — never the classification agent's own
+  reasoning — so it can't just rationalize a prior framing. Self-consistency
+  sampling was noted as an available future enhancement, not required.
+- **High-stakes claims are deterministically grounded, never trusted from
+  raw LLM output** (ADR-0007). Trusting an LLM's self-reported confidence
+  score was rejected — confidence scores aren't reliably calibrated to
+  actual groundedness. A second LLM call double-checking the first was also
+  rejected as the *sole* mechanism, since it's still LLM-mediated and can
+  share the same failure mode. What shipped: `ground_quote()` (deterministic
+  string matching, no LLM — an unlocatable quote means the claim is
+  *dropped*, not "corrected") and `vote_aspects()` (N independent pluggable
+  checkers, two-thirds agreement, one retry). An LLM may judge or propose;
+  only deterministic code verifies.
+
+Sales & CRM needed one genuine directly-invokable ADK agent object (for
+`to_a2a()` to expose), unlike the other departments' plain-Python
+orchestration. That meant `SequentialAgent` — already deprecated in ADK
+2.7.1 in favor of a new graph-based `Workflow` API, but the only option that
+still worked without spending scarce time learning and correctly
+implementing an unfamiliar graph API under deadline pressure. Documented as
+known, tracked debt (ADR-0009), not an oversight — worth revisiting for the
+whole department layer if `Workflow` becomes the standard, but not before
+the deadline.
+
+## Hardening pass — auth, idempotency, cost
+
+Once the department roster was real, three reliability/security gaps got
+closed:
+
+- **Auth, two independent layers** (ADR-0010). Firestore Security Rules
+  alone was rejected — it doesn't protect the backend's own write path,
+  since the backend writes with an elevated service account, not a
+  per-user token. A backend-only check with permissive Firestore rules was
+  also rejected — the frontend reads most state directly via `onSnapshot`,
+  so a leaked client reference would read any org's data with no rule to
+  stop it. Both layers ship, neither alone considered sufficient.
+  Router-level `require_org_member` wiring (not per-endpoint) was chosen
+  specifically so a new endpoint can't accidentally ship unauthenticated.
+- **Dispatch idempotency and failure handling** (ADR-0011). A reliability
+  review of the actual dispatch path (not assumed, read directly) found:
+  no dedup on Pub/Sub redelivery, no error handling anywhere in the
+  path (an exception left a task stuck at `DOING` forever *and* told
+  Pub/Sub to retry indefinitely), and the Ask-me flow was non-functional
+  end-to-end (`has_pending_human_qa` was set but the actual `HumanQA` entry
+  the answer endpoint indexes into was never appended). A Pub/Sub
+  dead-letter policy was considered instead of catching failures ourselves
+  — rejected, since once every anticipated failure is caught and acked,
+  there's no failure mode left for a DLQ to catch. Retry-with-backoff for
+  transient Gemini errors was scoped out as a separate, later concern.
+  Fixed: atomic check-and-set idempotency via Firestore's native `create()`
+  Conflict semantics, and a shared `_ask_human` failure-containment path
+  that both a department's real exception *and* a deliberate
+  `needs_human=True` now route through identically.
+- **A minimal Gemini call budget** (ADR-0012). Previously deferred while
+  running entirely on mocks; not defensible once real billing went live.
+  A Firestore transaction for an exact race-free count was considered and
+  rejected — the atomic `Increment` plus a non-transactional follow-up read
+  is close enough for a circuit breaker meant to catch gross runaway
+  behavior, not exact billing enforcement (documented inline as the
+  precise, intentional imprecision). Per-department budgets were rejected
+  too — the real risk is total account spend, not any one department.
+
+## Capability pass — search, tiering, vision, per-org budget
+
+Live testing surfaced a real gap: an open-ended research goal got routed to
+`product_analytics` (correctly scoped only to internal task/SLA metrics),
+which declined it — correctly, but the decline reason was itself invisible
+until fixed separately. At the same time the fixed 500/day Gemini budget
+was found to risk blocking a live demo outright with no way to raise it
+short of a redeploy. Four things shipped together (ADR-0013), all
+constrained by the same fact: department `LlmAgent`s are module-level
+singletons built once at import time, not per-request.
+
+- **Universal Google Search** on every agent, via ADK's documented
+  `GoogleSearchAgentTool` workaround for combining the built-in
+  `google_search` grounding tool with custom function tools.
+- **Per-task model tiering**, CEO-decided at `create_task` time
+  (`model_tier: "flash"|"pro"`). Mutating a shared singleton's `.model`
+  per-turn was rejected outright as a real race condition the moment two
+  orgs' turns overlap on Cloud Run — instead, two full singletons per
+  pipeline stage. A deterministic priority→tier rule was considered and
+  rejected too — priority already means urgency, not complexity, and would
+  need a second field regardless.
+- **Vision attachments via Cloud Storage**, not base64-in-Firestore — the
+  original draft used base64, rejected once the ~700KB effective ceiling
+  (after base64 inflation, under Firestore's 1MiB/doc limit) was flagged as
+  too low for real screenshots/photos. `Part.from_uri()` reading the GCS
+  object directly turned out to be the more natural Vertex AI integration
+  anyway. `include_attachment` defaults to `True` (not opt-in) — an LLM
+  asked to remember an optional flag on every `create_task` call is exactly
+  the kind of thing that silently gets dropped.
+- **Per-org configurable Gemini budget**, raised fallback from 500 to 5000
+  so the global default stops being a demo-blocking trap while still
+  catching a genuine runaway loop, with a real Settings tab to change it
+  without a redeploy.
+
+## UI evolution — from boxes to a real office, with real attribution
+
+Separately from the backend work, the frontend went through several real
+passes rather than one shot:
+
+- Kenney's CC0 RPG Urban Pack tiles were adopted for the office floor
+  (`ef9263e`, `fda92a5`) — walking character sprites with idle/walk-frame
+  animation, replacing placeholder boxes. Tile indices were repeatedly
+  **verified by rendering and individually inspecting the actual tile
+  PNGs**, not guessed from the packed tilemap thumbnail (too small to read
+  reliably) — a discipline that recurs throughout this project wherever a
+  visual asset choice mattered.
+- A "harness-grade UI" pass (`ae13bab`, `bd5f2e1`) adapted the color
+  palette, type scale, spacing scale, shadow/border system, and CSS
+  animation mechanics from an MIT-licensed reference design system
+  (`chaitanyagiri/munder-difflin` — see `THIRD_PARTY_SKILLS.md` for full
+  attribution). Fonts, color tokens, and interaction timings are a close
+  adaptation; the office-floor scene, agent/department content, and all
+  product copy are original — no branded characters or copy from the
+  reference are reproduced. This same pass added the animated office scene
+  layer: a continuous "breathing" bob so no sprite ever looks frozen, a
+  slow ambient wander for idle agents, a pulsing glow under active agents,
+  and a swaying office plant.
+- This session's own layout/office-scene overhaul (see below) went further
+  after the user reviewed real screenshots of that same reference app's
+  running UI and found the earlier pass's *layout* (not just its tokens)
+  still didn't match — a second, deeper adaptation pass, not a one-shot
+  copy.
+
+## Deployment infrastructure
+
+`docs/ARCHITECTURE.md`, a `Dockerfile`, and `/infra/deploy/setup.sh` +
+`deploy.sh` were written to take the project from local-only to a real
+Cloud Run + Firebase Hosting deployment (`99eb88f`). Getting there in
+practice surfaced and fixed several real, live issues rather than
+theoretical ones: Cloud Build's default service account needed explicit
+Storage/Artifact Registry IAM grants on a tightened-default project
+(`935a6d6`); `/internal/*` routes needed real Pub/Sub OIDC token
+verification once the backend had to be deployed `--allow-unauthenticated`
+(`0a31814` — Cloud Run's own IAM gate can't coexist with a publicly
+browser-reachable `/api/org/*` on the same service); the A2A card wasn't
+reachable and the Firestore client wasn't reading correctly on first deploy
+(`fd3892a`); and `deploy.sh`'s Firestore-seed step needed to explicitly use
+the venv's own Python (`ca877a1`). Billing availability gated how much of
+this could be exercised end-to-end against a live project at any given
+point in the timeline — see the individual commits for what was verified
+live versus what was written and reviewed but not yet run against a live
+project as of that point.
+
+## Research digression 1 — Google Antigravity: evaluated, rejected
+
+A request to make department agents feel like a real persistent, stateful
+multi-agent harness rather than one-shot chatbot replies led to evaluating
+Google Antigravity (`google-antigravity` SDK + the separate `agy` CLI) —
+the Google-only stack this project is locked to anyway. This was a real
+empirical spike, not a docs read: the actual package was installed,
+inspected with `inspect` against real installed source, and run against
+live Vertex AI turns (ADR-0014). Three independent blockers surfaced:
+
+1. A resolvable `protobuf` version conflict with the A2A SDK.
+2. **No pluggable persistence that survives a fresh process** — the real
+   installed API had none of what the docs described (no `BaseDb`, no
+   `SqliteDb`/`PostgresDb`); the only continuation mechanism was tied to
+   local disk, which an ephemeral, scale-to-zero, multi-instance Cloud Run
+   deployment can't tolerate. The only way to inject history manually was
+   reaching into a private, unsupported internal attribute on an early
+   Alpha package — rejected as too fragile days before a deadline.
+3. The CLI's real headless auth path was a raw Gemini API key, not Vertex
+   AI — directly conflicting with this project's own stated hackathon
+   eligibility requirement.
+
+**Let go entirely**: no Antigravity dependency, SDK or CLI. What shipped
+instead needed no new framework at all: curated, attributed excerpts from
+real MIT-licensed skills appended directly into the relevant department
+prompt files (see `THIRD_PARTY_SKILLS.md`), plus the discovery — once
+actually checked — that department sessions already persist across turns
+via the existing `FirestoreSessionService`, so the "no memory between
+turns" gap the investigation started from didn't actually exist. Curating
+those skills also caught two that didn't genuinely fit their assigned
+department (`security-guidance`, an editor hook, not domain knowledge;
+`saas-metrics-coach`, irrelevant ARR/MRR coaching for per-invoice review)
+and one misassignment (`revops` fits lead qualification better than deal
+strategy) — corrected before landing rather than forced to fit.
+
+## Research digression 2 — opencode: patterns adopted, framework rejected
+
+A request to study a real, mature open-source coding agent
+(`anomalyco/opencode`, MIT, real source read via `gh api`) plus four
+outside "loop engineering" sources led to reimplementing several concrete
+patterns *natively* against this project's own ADK/Firestore stack, with no
+new framework or dependency (ADR-0015):
+
+- A doom-loop guard + per-turn tool-call cap (same tool, byte-identical
+  args, 3 times in a row → `RuntimeError`, routed through the existing
+  `@audited_task` failure path).
+- Session compaction, resolving a previously-flagged, previously-deferred
+  1 MiB Firestore-document-size risk — reworked around Firestore's actual
+  byte-size constraint rather than a token-window estimate (the wrong
+  metric here, since Gemini's context window isn't what's actually at
+  risk).
+- Gated memory auto-surfacing — a cheap existence check gates a real
+  semantic-search call, so an agent with no memory yet costs nothing extra
+  on the hottest code path in the app.
+- Extended maker/checker verification into `engineering_sre` and
+  `hr_people_ops`, and added the one real gap a tool audit found:
+  `create_jira_ticket` (the `jira` integration template existed but was
+  never called anywhere).
+
+**Let go**: opencode's in-process sub-agent/child-session pattern for
+CEO→department delegation — rejected as architecturally the *opposite* of
+this project's Pub/Sub-based delegation, which exists specifically because
+departments are separate Cloud Run services, not in-process child sessions
+in a single local process. Narrowing `spawn_worker`'s tool permissions
+(mirroring opencode's sub-agent permission-narrowing) was considered and
+dropped — no concrete evidence of a real problem to justify it. Forcing
+`vote_aspects` onto every department was rejected for `sales_crm` (already
+deterministically guarded elsewhere), `product_analytics`, and `executive`
+(both narrate deterministically-computed numbers with no external claim to
+mis-ground) — the same "don't force fits" principle applied again.
+
+## This session — layout/office-scene overhaul + agent capability expansion
+
+Triggered by the user reviewing real screenshots of the reference app's
+running UI and concluding the earlier design-token adaptation wasn't
+enough — the *layout* itself (roster position, dashboard position, office
+scene scale/detail, icons, collapsible sections, agent personas) still
+didn't match — plus a batch of genuine platform questions the project
+hadn't answered yet: how does an org customize an agent, connect its own
+data, control which department can use which integration (and let an agent
+request access it doesn't have), and can agents spawn sub-agents or combine
+several of their own tool calls into one round trip.
+
+**Research, both explored and rejected**: Anthropic's real Programmatic
+Tool Calling (a Claude-API-specific beta — Anthropic-hosted stateful code
+containers, `allowed_callers`/`caller` attribution) was fetched and read
+directly, then confirmed **not usable** — this backend is Gemini-via-
+Vertex-AI-only, a hard eligibility requirement, not a preference. The
+linked "speculative PTC" research (a token-stream-level inference-server
+optimization requiring raw partial-generation access) was likewise
+confirmed not implementable against ADK's `Runner.run_async`. What was
+genuinely portable — letting an agent orchestrate several of its own tool
+calls in one snippet instead of many round trips — was reimplemented
+natively as the sandboxed `execute_python` tool (below), the only actual
+takeaway from that research thread.
+
+**A first plan was presented and rejected** by the user, with three
+specific, concrete corrections, all honored in the revision: (1) the
+header's plain `org: demo` text and generic profile icon needed fixing, and
+the sign-in page needed real design treatment, not a placeholder screen;
+(2) no emoji anywhere in the UI, including the pre-existing 👑 CEO badge —
+use a real icon library, not just avoid adding new emoji; (3) the frontend
+needed a real, visible way to see every connected integration, not just an
+admin-config toggle buried in a form.
+
+**Frontend, shipped:**
+
+- Sidebar given a real height constraint (was silently causing page-level
+  scroll instead of scrolling internally).
+- `App.tsx` restructured from a swap-on-select single-column layout into
+  Sidebar / office scene (always mounted — no more destroying and
+  rebuilding the whole Pixi application, and its animation state, on every
+  agent click) / a right-hand dashboard-or-agent-detail column.
+- The office floor rebuilt as a genuine 3×3 room-and-corridor grid
+  (replacing 9 small, differently-shaped zones including one oddball wide
+  strip) inside a responsive Pixi `world` container that rescales to fit
+  whatever screen space is actually available, with real tiled walls,
+  doors, corridor floors, and a bookshelf — tile indices for all of it
+  re-verified the same render-and-inspect way as every earlier tile choice
+  in this project, not guessed. A bordered-room tile family and several
+  alternate door/corridor tiles were found and explicitly **not used** —
+  the simpler, already-confirmed set was chosen to keep the rewrite
+  tractable, and no water-cooler-shaped tile exists anywhere in the pack
+  (confirmed by full visual review) so that prop was skipped rather than
+  forced.
+- Every emoji glyph replaced with `lucide-react` icons (a new,
+  MIT-licensed, tree-shakeable dependency — each intended icon name was
+  confirmed to actually exist in the installed package before use, not
+  assumed), including the CEO crown badge.
+- Real per-agent personas (original names/bios, no resemblance to any
+  media property) replacing generic department-name placeholders, which
+  also fixed a real bug: two agents sharing one zone (CEO + Office of the
+  CEO, both in the executive room) previously rendered as visually
+  identical sprites because sprite-variant selection hashed the
+  *department*, not the agent.
+- A real header (Google-account avatar via Firebase Auth's already-present
+  `photoURL`, a styled org badge instead of plain text) and a redesigned
+  sign-in landing page.
+- Collapsible sections for Triggers (Schedules/Webhooks) and Commands —
+  deliberately **not** added to Settings, which is one flat panel with
+  nothing to usefully collapse.
+
+**Backend, shipped** (see ADR-0016 for the full decision record):
+
+- **Per-department integration access control**, reusing
+  `Integration.connected_departments` — a field that already existed on
+  the model and was already written by the create-integration form, but
+  had never once been read. Empty means unrestricted (every existing
+  integration's actual behavior, unchanged); non-empty is a strict
+  allowlist enforced in `call_integration`, the one function every
+  integration call already goes through. A denial files a standing
+  `access_requests` doc for an owner to resolve, rather than blocking the
+  task itself — a permission decision is a governance-timescale call, not
+  a per-task one (rejected: routing it through the existing
+  `_ask_human`/`TaskStatus.BLOCKED` path, since the existing integration
+  call sites are deliberately fail-soft already). The frontend gained a
+  real "Connected apps" panel and a pending-requests panel, directly
+  answering the user's third correction above.
+- **An org-uploadable knowledge base** per department, falling back to each
+  department's existing static corpus when nothing's been uploaded — a
+  fresh org behaves identically to before. Explicitly **not** embedded or
+  searched (rejected) — the static corpora it replaces were never searched
+  either, only inlined whole into the prompt, so there's nothing yet for a
+  vector index to improve on.
+- **Sub-agent spawning**, reusing the existing ephemeral `spawn_worker`
+  mechanism rather than reopening the Pub/Sub-only CEO↔department boundary
+  (ADR-0004) — a synchronous `spawn_worker_and_await` sibling with a 120s
+  timeout returns a delegated sub-task's real result inline. The depth cap
+  is **structural, not counted**: the new tool is wired only to the CEO and
+  two departments, and deliberately kept out of the tool list the
+  ephemeral worker agents themselves get — a spawned worker cannot spawn
+  another one because it was never given the tool to do so, not because a
+  counter stopped it. A per-turn depth counter was considered and rejected
+  for exactly that reason — a counted limit can be gamed or miscounted;
+  structural absence cannot.
+- **A sandboxed `execute_python` tool**, the one concrete, portable idea
+  salvaged from the PTC research above. A bare in-process `exec()` with a
+  builtins allowlist was rejected outright — the classic
+  `().__class__.__bases__` gadget defeats it, and a CPU-bound `while True`
+  can't be force-killed in-process either way. RestrictedPython alone
+  (in-process) was also rejected as insufficient on its own — it closes the
+  gadget but still can't bound wall-clock time. What shipped: a real OS
+  subprocess as the actual isolation boundary (only a real process can be
+  `kill()`ed regardless of what's running inside it), with
+  RestrictedPython's `compile_restricted` running inside that subprocess as
+  defense-in-depth on top. This was verified live, not assumed: a
+  malicious `import os` snippet was rejected by the real subprocess; a
+  `while True: pass` snippet actually ran for the full timeout and was
+  actually killed by the parent process; and a multi-lookup task completed
+  in one real round trip instead of N. The child process never imports
+  `app.services.store` or holds any credential — a whitelisted, read-only
+  `call_tool(name, **kwargs)` (`list_tasks_tool`, `list_agents_tool`,
+  `search_memory_tool`, `read_memory`) is serviced entirely by the parent
+  over line-delimited JSON on stdio. Write tools were deliberately **left
+  out of the allowlist** — they stay individually visible in the outer
+  turn's own trace/audit log rather than proxied opaquely through a
+  snippet, pending a real sandboxed-write audit design that doesn't exist
+  yet.
+
+## What we chose to let go — the full list in one place
+
+Everything below was seriously considered at some point and deliberately
+not built, with the reason on record (mostly in the ADR named):
+
+- A local desktop app with a bolted-on cloud-sync layer (ADR-0001).
+- A polyglot backend, one language per department (ADR-0002).
+- Firestore-only messaging via inbox polling, instead of Pub/Sub push
+  (ADR-0003).
+- A2A for internal CEO↔department messaging (ADR-0004).
+- Ad hoc per-department Firestore/Pub-Sub wiring instead of one shared
+  contract (ADR-0005).
+- A second, non-Gemini LLM provider dedicated to fraud detection
+  (ADR-0006).
+- Trusting an LLM's self-reported confidence score, or a second LLM call
+  as the *sole* check, for grounded claims (ADR-0007).
+- Ponytail at `full`/`ultra` during initial core-department buildout, or
+  at `lite` throughout the wider-roster buildout (ADR-0008).
+- Learning and adopting ADK's new `Workflow` graph API under deadline
+  pressure, or avoiding a real ADK agent for Sales entirely (ADR-0009) —
+  the latter still an open item, not yet revisited.
+- Firestore-rules-only or backend-check-only auth, and per-endpoint (versus
+  router-level) auth wiring (ADR-0010).
+- A Pub/Sub dead-letter policy instead of catching failures ourselves, and
+  retry-with-backoff for transient Gemini errors (deferred, ADR-0011).
+- A Firestore-transaction-exact Gemini budget counter, and per-department
+  (versus per-org) budgets (ADR-0012).
+- Base64-in-Firestore for vision attachments, a deterministic
+  priority→model-tier rule, `include_attachment` defaulting to opt-in, and
+  mutating a shared agent singleton's `.model` per-turn (ADR-0013).
+- Google Antigravity, SDK or CLI, in any form — including a DIY
+  private-attribute persistence hack and a single-always-on-machine CLI
+  deployment (ADR-0014).
+- opencode's in-process sub-agent/child-session delegation pattern, worker
+  permission-narrowing with no concrete problem behind it, and forcing
+  `vote_aspects` onto departments with no external claim to verify
+  (ADR-0015).
+- Anthropic's Programmatic Tool Calling and "speculative PTC" outright (not
+  usable on this stack, not a design choice); routing integration-access
+  denial through the task-blocking path instead of a standing queue;
+  embedding/searching the knowledge base instead of inlining it; and a
+  counted (versus structural) sub-agent depth cap (ADR-0016, this session).
+
+## Current state
+
+All 9 originally planned departments are implemented: Finance & Audit,
+Engineering & SRE, Legal & Risk, Office of the CEO, Sales & CRM (also
+A2A-exposed), HR & People Ops, Customer Support, Marketing & Comms, and
+Product & Data Analytics. The full Command Center tab set is implemented
+(Monitor, Tasks, Ask-me, Activity, Triggers, Workers, Memory, Knowledge,
+Graph, Settings, Commands), plus a real 3×3 office floor with personas,
+per-department integration access control, an org-uploadable knowledge
+base, sub-agent spawning, and a sandboxed multi-tool orchestration path.
+158 backend tests and a clean frontend build/lint pass as of this writing.
+
+Known open items, not hidden: the `SequentialAgent`→`Workflow` migration
+(ADR-0009), retry-with-backoff for transient Gemini errors (ADR-0011),
+self-service org invites (still manual via `scripts/seed.py
+--owner-uid`), real Cloud Run Job execution for ephemeral workers (they
+currently run as in-process `asyncio` tasks — a documented, deliberate MVP
+shape, not an oversight), and extending the sandbox's tool allowlist to
+writes once a real sandboxed-write audit design exists.
