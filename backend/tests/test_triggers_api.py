@@ -111,3 +111,24 @@ def test_internal_fire_dispatches_scheduled_trigger():
     assert response.status_code == 200
     assert response.json()["fired"] is True
     assert mock_publish.call_args.kwargs["to"] == "executive"
+
+
+def test_webhook_fire_logs_trigger_history():
+    with (
+        patch("app.api.triggers.store.get_trigger", return_value=_fake_webhook_trigger()),
+        patch("app.api.triggers.store.mark_trigger_fired"),
+        patch("app.api.triggers.store.log_trigger_history") as mock_log,
+        patch("app.api.triggers.pubsub_client.publish_message"),
+    ):
+        client.post("/api/org/demo/triggers/trig-1/webhook", headers={"X-Trigger-Secret": "shh"}, content=b"auth is down")
+    assert mock_log.call_args.args[0] == "demo"
+    assert mock_log.call_args.args[1] == "trig-1"
+    assert "auth is down" in mock_log.call_args.args[2]
+
+
+def test_trigger_history_endpoint_returns_store_contents():
+    entries = [{"id": "h1", "firedAt": "2026-01-01T00:00:00Z", "payloadPreview": "hi"}]
+    with patch("app.api.triggers.store.list_trigger_history", return_value=entries):
+        response = client.get("/api/org/demo/triggers/trig-1/history")
+    assert response.status_code == 200
+    assert response.json() == entries

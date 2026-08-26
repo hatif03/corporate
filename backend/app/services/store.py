@@ -80,6 +80,17 @@ def set_agent_paused(org_id: str, agent_id: str, paused: bool) -> None:
     org_doc(org_id, "agents", agent_id).update({"paused": paused, "updatedAt": _now()})
 
 
+def update_agent_persona(org_id: str, agent_id: str, **fields: Any) -> None:
+    """Same snake_case-in, camelCase-out convention as update_org_settings —
+    lets an org rename an agent, rewrite its bio, or pick a different sprite
+    variant/accent color without touching the department contract itself
+    (on_task_received, prompts, ADK pipeline stages are all still real code,
+    not editable from here)."""
+    camel_fields = {to_camel(k): v for k, v in fields.items()}
+    camel_fields["updatedAt"] = _now()
+    org_doc(org_id, "agents", agent_id).update(camel_fields)
+
+
 def append_trace(org_id: str, agent_id: str, line: str, kind: str = "tool") -> None:
     org_doc(org_id, "agents", agent_id).collection("trace").add(
         {"ts": _now(), "line": line, "kind": kind}
@@ -196,6 +207,26 @@ def set_trigger_enabled(org_id: str, trigger_id: str, enabled: bool) -> None:
 
 def mark_trigger_fired(org_id: str, trigger_id: str) -> None:
     org_doc(org_id, "triggers", trigger_id).update({"lastFiredAt": _now()})
+
+
+def log_trigger_history(org_id: str, trigger_id: str, payload_preview: str) -> None:
+    """orgs/{orgId}/triggers/{id}/history/{firingId} — mirrors the existing
+    append_trace/log_activity subcollection pattern. Trigger previously only
+    stored a single last-fired timestamp; this is the real log of every
+    firing, not just the most recent one."""
+    org_doc(org_id, "triggers", trigger_id).collection("history").add(
+        {"firedAt": _now(), "payloadPreview": payload_preview[:200]}
+    )
+
+
+def list_trigger_history(org_id: str, trigger_id: str, limit_count: int = 50) -> list[dict]:
+    query = (
+        org_doc(org_id, "triggers", trigger_id)
+        .collection("history")
+        .order_by("firedAt", direction="DESCENDING")
+        .limit(limit_count)
+    )
+    return [{"id": d.id, **d.to_dict()} for d in query.stream()]
 
 
 def delete_trigger(org_id: str, trigger_id: str) -> None:

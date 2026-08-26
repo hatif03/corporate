@@ -46,6 +46,16 @@ def _default_no_kb_documents():
 
 
 @pytest.fixture(autouse=True)
+def _default_no_op_trigger_history():
+    """_fire_trigger (app/api/triggers.py) calls store.log_trigger_history
+    on every fire, alongside the existing mark_trigger_fired — real network
+    call otherwise. Tests that actually exercise trigger history override
+    this locally."""
+    with patch("app.services.store.log_trigger_history", return_value=None):
+        yield
+
+
+@pytest.fixture(autouse=True)
 def _bypass_org_auth():
     """API tests exercise route logic, not the auth layer itself (that has
     its own dedicated tests/test_auth.py) — override the require_org_member

@@ -73,6 +73,27 @@ def test_pause_unknown_agent_404s():
     assert response.status_code == 404
 
 
+def test_update_persona_writes_only_provided_fields():
+    from app.models import Agent
+
+    agent = Agent(id="engineering_sre", name="SRE", department="engineering_sre")
+    renamed = Agent(id="engineering_sre", name="New Name", department="engineering_sre")
+    with (
+        patch("app.api.agents.store.get_agent", side_effect=[agent, renamed]),
+        patch("app.api.agents.store.update_agent_persona") as mock_update,
+    ):
+        response = client.patch("/api/org/demo/agents/engineering_sre", json={"name": "New Name"})
+    assert response.status_code == 200
+    assert response.json()["name"] == "New Name"
+    mock_update.assert_called_once_with("demo", "engineering_sre", name="New Name")
+
+
+def test_update_persona_unknown_agent_404s():
+    with patch("app.api.agents.store.get_agent", return_value=None):
+        response = client.patch("/api/org/demo/agents/nope", json={"name": "X"})
+    assert response.status_code == 404
+
+
 def test_update_settings_accepts_valid_limit():
     with (
         patch("app.api.org.store.update_org_settings") as mock_update,

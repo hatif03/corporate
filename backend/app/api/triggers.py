@@ -60,6 +60,11 @@ async def delete_trigger(org_id: str, trigger_id: str) -> dict:
     return {"deleted": True}
 
 
+@router.get("/{trigger_id}/history")
+async def trigger_history(org_id: str, trigger_id: str) -> list[dict]:
+    return store.list_trigger_history(org_id, trigger_id)
+
+
 @router.post("/{trigger_id}/webhook")
 async def receive_webhook(org_id: str, trigger_id: str, request: Request) -> dict:
     trigger = store.get_trigger(org_id, trigger_id)
@@ -108,3 +113,4 @@ def _fire_trigger(org_id: str, trigger: Trigger, payload_text: str) -> None:
             body=rendered_body,
         )
     store.mark_trigger_fired(org_id, trigger.id)
+    store.log_trigger_history(org_id, trigger.id, payload_text or rendered_body)
