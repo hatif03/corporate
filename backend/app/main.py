@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import access_requests, agents, audit, integrations, internal, knowledge_base, memory, org, triggers, workers
+from app.api import access_requests, agents, audit, integrations, internal, knowledge_base, memory, org, triggers, voice, workers
 from app.config import settings
 from app.services.auth import require_internal_oidc, require_org_member
 
@@ -66,6 +66,12 @@ app.include_router(memory.router, dependencies=_org_scoped_dependency)
 app.include_router(integrations.router, dependencies=_org_scoped_dependency)
 app.include_router(access_requests.router, dependencies=_org_scoped_dependency)
 app.include_router(knowledge_base.router, dependencies=_org_scoped_dependency)
+
+# Not wired with _org_scoped_dependency: browsers can't set custom headers
+# on a WebSocket handshake, so require_org_member's Authorization-header
+# check would always fail here. voice.py authenticates itself from a
+# query-param token instead — see that module's docstring.
+app.include_router(voice.router)
 
 
 # Not /healthz: on the shared *.run.app domain, Google's own front end
