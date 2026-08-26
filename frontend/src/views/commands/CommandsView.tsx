@@ -167,6 +167,9 @@ export function CommandsView({ orgId }: { orgId: string }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <p className="corp-text-muted" style={{ fontSize: '0.85rem', margin: 0 }}>
+        Press <kbd>Ctrl/Cmd+K</kbd> anywhere for a quick-action launcher (open an agent, pause/resume, dispatch a goal) instead of copy-pasting these.
+      </p>
       {groups.map((g) => (
         <div key={g.title} className="corp-panel">
           <Collapsible title={g.title}>

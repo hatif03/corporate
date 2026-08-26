@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, X } from 'lucide-react'
+import { Icon } from '../../components/Icon'
 import {
   getSettings,
   listAccessRequests,
@@ -89,10 +89,10 @@ function ConnectedApps({ orgId, agents }: { orgId: string; agents: Agent[] }) {
             </span>
             <div style={{ display: 'flex', gap: 6 }}>
               <button className="corp-button" title="Approve" onClick={() => resolve(r.id, true)}>
-                <Check size={14} aria-hidden />
+                <Icon name="check" />
               </button>
               <button className="corp-button" title="Deny" onClick={() => resolve(r.id, false)}>
-                <X size={14} aria-hidden />
+                <Icon name="x" />
               </button>
             </div>
           </div>

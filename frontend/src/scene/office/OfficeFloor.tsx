@@ -1,19 +1,15 @@
 import { useEffect, useRef } from 'react'
 import { Application, Assets, Container, Graphics, Sprite, Text, Texture, TilingSprite } from 'pixi.js'
 import { DEPARTMENT_ZONES, WORLD_HEIGHT, WORLD_WIDTH, type DepartmentZone } from './departments'
-import { CORRIDOR_RECTS } from './corridors'
 import {
   ART_TILE,
   BOOKSHELF_TILE,
   CABINET_TILE,
   CHARACTER_VARIANTS,
-  CORRIDOR_FLOOR_TILE,
   DESK_TILE,
-  DOOR_TILE,
   FLOOR_TILE,
   PLANT_TILE,
   TRASH_TILE,
-  WALL_TILE,
   variantForCharacter,
 } from './tileset'
 import {
@@ -45,13 +41,16 @@ const STATUS_DOT_COLOR: Record<string, number> = {
 const ACTIVE_STATUSES: AgentStatus[] = ['thinking', 'working', 'typing', 'looping', 'compacting']
 
 const MOVE_SPEED = 1.6 // px/frame at 60fps
-const WALK_FRAME_TICKS = 12 // how often to alternate walk-pose while moving
+const WALK_PHASE_TICKS = 10 // how often to advance one step of the walk cycle
+// Stand -> step -> stand -> step, not a continuous A/B alternation — matches
+// the reference app's 4-phase walk cycle (see /THIRD_PARTY_SKILLS.md),
+// reusing our idle/walkA/walkB frames in place of its 3-row directional set.
+const WALK_CYCLE: readonly ('idle' | 'walkA' | 'walkB')[] = ['idle', 'walkA', 'idle', 'walkB']
 const BOB_AMPLITUDE_IDLE = 1.2 // px — a subtle "breathing" bob so nobody ever looks frozen
 const BOB_AMPLITUDE_ACTIVE = 2.2 // px — a slightly busier bob while actively working
 const BOB_SPEED_IDLE = 0.05 // radians/frame
 const BOB_SPEED_ACTIVE = 0.11 // radians/frame
 const GLOW_SPEED = 0.06 // radians/frame — pulsing "at work" glow under active agents
-const WALL_THICKNESS = 16 // px, tiled strip along each room's north edge
 
 interface AgentSprite {
   container: Container
@@ -62,20 +61,21 @@ interface AgentSprite {
   departmentId: string
   character: string
   status: AgentStatus
-  walkFrame: 0 | 1
+  walkPhase: number
   tickCount: number
   bobPhase: number
 }
 
 /**
  * Real tile/sprite office floor (Kenney CC0 RPG Urban Pack, see tileset.ts):
- * a genuine 3x3 room-and-corridor layout (departments.ts / corridors.ts),
- * tiled walls + doors, a small furniture set per room (desk, cabinet,
- * bookshelf, plant, trash, wall art), and one character sprite per agent
- * that walks between a "desk" and "idle" anchor as its status changes
- * (movement.ts — pure client-side, see ADR-0013). Agents are diffed against
- * the previous frame instead of being torn down and rebuilt on every
- * Firestore tick, so an in-progress walk is never interrupted.
+ * one open-plan floor — desk clusters per department with no walls/doors
+ * between them, plus a shared boardroom and break room — adapted from the
+ * reference app's open-plan layout philosophy (see /THIRD_PARTY_SKILLS.md).
+ * One character sprite per agent walks between a "desk" and "idle" anchor
+ * as its status changes (movement.ts — pure client-side, see ADR-0013).
+ * Agents are diffed against the previous frame instead of being torn down
+ * and rebuilt on every Firestore tick, so an in-progress walk is never
+ * interrupted.
  *
  * Everything is drawn into a single `world` container, which is rescaled
  * and centered to fit whatever screen space the host panel actually has
@@ -88,6 +88,8 @@ interface AgentSprite {
  * wander around their idle anchor instead of freezing at one point, active
  * agents get a pulsing glow at their desk, and the office plant sways —
  * meant to read as a living, working office rather than a static diagram.
+ * The Pixi ticker is stopped (not the whole app) whenever the tab is
+ * hidden, so an invisible canvas doesn't keep burning GPU/CPU.
  */
 export function OfficeFloor({ agents }: { agents: Agent[] }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -161,7 +163,7 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
             departmentId: agent.department,
             character: agent.character,
             status: agent.status,
-            walkFrame: 0,
+            walkPhase: 0,
             tickCount: 0,
             bobPhase: (hashId(agent.id) % 1000) / 1000 * Math.PI * 2,
           }
@@ -217,103 +219,99 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
         PLANT_TILE,
         TRASH_TILE,
         ART_TILE,
-        WALL_TILE,
-        DOOR_TILE,
-        CORRIDOR_FLOOR_TILE,
         ...CHARACTER_VARIANTS.flatMap((v) => [v.idle, v.walkA, v.walkB]),
       ]
       const loaded = (await Assets.load(allSprites)) as Record<string, Texture>
       for (const [url, texture] of Object.entries(loaded)) texturesRef.current.set(url, texture)
       if (destroyed) return
 
-      // Corridors first, underneath the rooms.
-      for (const rect of CORRIDOR_RECTS) {
-        const floor = new TilingSprite({
-          texture: texturesRef.current.get(CORRIDOR_FLOOR_TILE),
-          width: rect.width,
-          height: rect.height,
-        })
-        floor.position.set(rect.x, rect.y)
-        world.addChild(floor)
-      }
+      // One continuous floor underneath every zone — open plan, no walls.
+      const baseFloor = new TilingSprite({ texture: texturesRef.current.get(FLOOR_TILE), width: WORLD_WIDTH, height: WORLD_HEIGHT })
+      world.addChild(baseFloor)
 
       for (const zone of DEPARTMENT_ZONES) {
-        const floor = new TilingSprite({
-          texture: texturesRef.current.get(FLOOR_TILE),
-          width: zone.width,
-          height: zone.height,
-        })
-        floor.position.set(zone.x, zone.y)
-        floor.tint = zone.color
-        floor.alpha = 0.55
-        world.addChild(floor)
-
-        // Tiled wall along the room's north edge.
-        const wall = new TilingSprite({
-          texture: texturesRef.current.get(WALL_TILE),
-          width: zone.width,
-          height: WALL_THICKNESS,
-        })
-        wall.position.set(zone.x, zone.y)
-        world.addChild(wall)
-
-        // Door on the south edge, facing the corridor system.
-        const door = new Sprite(texturesRef.current.get(DOOR_TILE))
-        door.anchor.set(0.5, 1)
-        door.scale.set(1.6)
-        door.position.set(zone.x + zone.width * 0.5, zone.y + zone.height)
-        world.addChild(door)
-
-        // Heavier double-line border on top of the wall/door art, matching
-        // the app's existing hard-shadow/inset-border design language.
-        const border = new Graphics()
-          .rect(zone.x, zone.y, zone.width, zone.height)
-          .stroke({ width: 3, color: 0x2b2b2b })
-          .rect(zone.x + 4, zone.y + 4, zone.width - 8, zone.height - 8)
-          .stroke({ width: 1, color: 0x2b2b2b, alpha: 0.4 })
-        world.addChild(border)
+        // A soft tint patch (no border) is the only thing marking one zone
+        // off from the next — the open-plan floor itself is continuous.
+        const tint = new Graphics().rect(zone.x, zone.y, zone.width, zone.height).fill({ color: zone.color, alpha: 0.16 })
+        world.addChild(tint)
 
         const label = new Text({
           text: zone.displayName,
           style: { fontSize: 14, fill: 0x1c1c1c, fontWeight: 'bold' },
         })
-        label.position.set(zone.x + 10, zone.y + WALL_THICKNESS + 6)
+        label.position.set(zone.x + 10, zone.y + 8)
         world.addChild(label)
 
-        const desk = new Sprite(texturesRef.current.get(DESK_TILE))
-        desk.anchor.set(0.5)
-        desk.scale.set(1.6)
-        const deskAnchor = deskAnchorFor(zone as DepartmentZone)
-        desk.position.set(deskAnchor.x, deskAnchor.y + 10)
-        world.addChild(desk)
+        if (zone.kind === 'department') {
+          const desk = new Sprite(texturesRef.current.get(DESK_TILE))
+          desk.anchor.set(0.5)
+          desk.scale.set(1.6)
+          const deskAnchor = deskAnchorFor(zone as DepartmentZone)
+          desk.position.set(deskAnchor.x, deskAnchor.y + 10)
+          world.addChild(desk)
 
-        const cabinet = new Sprite(texturesRef.current.get(CABINET_TILE))
-        cabinet.anchor.set(0.5)
-        cabinet.scale.set(1.3)
-        const cabinetAnchor = cabinetAnchorFor(zone as DepartmentZone)
-        cabinet.position.set(cabinetAnchor.x, cabinetAnchor.y)
-        world.addChild(cabinet)
+          const cabinet = new Sprite(texturesRef.current.get(CABINET_TILE))
+          cabinet.anchor.set(0.5)
+          cabinet.scale.set(1.3)
+          const cabinetAnchor = cabinetAnchorFor(zone as DepartmentZone)
+          cabinet.position.set(cabinetAnchor.x, cabinetAnchor.y)
+          world.addChild(cabinet)
 
-        const bookshelf = new Sprite(texturesRef.current.get(BOOKSHELF_TILE))
-        bookshelf.anchor.set(0.5)
-        bookshelf.scale.set(1.3)
-        const bookshelfAnchor = bookshelfAnchorFor(zone as DepartmentZone)
-        bookshelf.position.set(bookshelfAnchor.x, bookshelfAnchor.y)
-        world.addChild(bookshelf)
+          const bookshelf = new Sprite(texturesRef.current.get(BOOKSHELF_TILE))
+          bookshelf.anchor.set(0.5)
+          bookshelf.scale.set(1.3)
+          const bookshelfAnchor = bookshelfAnchorFor(zone as DepartmentZone)
+          bookshelf.position.set(bookshelfAnchor.x, bookshelfAnchor.y)
+          world.addChild(bookshelf)
 
-        const trash = new Sprite(texturesRef.current.get(TRASH_TILE))
-        trash.anchor.set(0.5)
-        trash.scale.set(1.1)
-        const trashAnchor = trashAnchorFor(zone as DepartmentZone)
-        trash.position.set(trashAnchor.x, trashAnchor.y)
-        world.addChild(trash)
+          const trash = new Sprite(texturesRef.current.get(TRASH_TILE))
+          trash.anchor.set(0.5)
+          trash.scale.set(1.1)
+          const trashAnchor = trashAnchorFor(zone as DepartmentZone)
+          trash.position.set(trashAnchor.x, trashAnchor.y)
+          world.addChild(trash)
 
-        const art = new Sprite(texturesRef.current.get(ART_TILE))
-        art.anchor.set(0.5)
-        art.scale.set(1.1)
-        const artAnchor = artAnchorFor(zone as DepartmentZone)
-        art.position.set(artAnchor.x, artAnchor.y)
-        world.addChild(art)
+          const art = new Sprite(texturesRef.current.get(ART_TILE))
+          art.anchor.set(0.5)
+          art.scale.set(1.1)
+          const artAnchor = artAnchorFor(zone as DepartmentZone)
+          art.position.set(artAnchor.x, artAnchor.y)
+          world.addChild(art)
+        } else if (zone.kind === 'boardroom') {
+          // A long table: three desk tiles in a row, nobody permanently
+          // seated (no agent has department === 'boardroom').
+          for (let i = 0; i < 3; i++) {
+            const table = new Sprite(texturesRef.current.get(DESK_TILE))
+            table.anchor.set(0.5)
+            table.scale.set(1.6)
+            table.position.set(zone.x + zone.width * (0.22 + i * 0.28), zone.y + zone.height * 0.55)
+            world.addChild(table)
+          }
+          const art = new Sprite(texturesRef.current.get(ART_TILE))
+          art.anchor.set(0.5)
+          art.scale.set(1.1)
+          art.position.set(zone.x + zone.width * 0.5, zone.y + zone.height * 0.15)
+          world.addChild(art)
+        } else {
+          // Break room: cabinet + bookshelf + trash + plant, no desk.
+          const cabinet = new Sprite(texturesRef.current.get(CABINET_TILE))
+          cabinet.anchor.set(0.5)
+          cabinet.scale.set(1.3)
+          cabinet.position.set(zone.x + zone.width * 0.25, zone.y + zone.height * 0.5)
+          world.addChild(cabinet)
+
+          const bookshelf = new Sprite(texturesRef.current.get(BOOKSHELF_TILE))
+          bookshelf.anchor.set(0.5)
+          bookshelf.scale.set(1.3)
+          bookshelf.position.set(zone.x + zone.width * 0.75, zone.y + zone.height * 0.3)
+          world.addChild(bookshelf)
+
+          const trash = new Sprite(texturesRef.current.get(TRASH_TILE))
+          trash.anchor.set(0.5)
+          trash.scale.set(1.1)
+          trash.position.set(zone.x + zone.width * 0.5, zone.y + zone.height * 0.75)
+          world.addChild(trash)
+        }
 
         const plant = new Sprite(texturesRef.current.get(PLANT_TILE))
         plant.anchor.set(0.5, 0.85) // base of the plant, so sway rotation pivots at the pot
@@ -353,11 +351,12 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
             if (dx !== 0) sprite.charSprite.scale.x = (dx < 0 ? -1 : 1) * Math.abs(sprite.charSprite.scale.x)
 
             sprite.tickCount += 1
-            if (sprite.tickCount >= WALK_FRAME_TICKS) {
+            if (sprite.tickCount >= WALK_PHASE_TICKS) {
               sprite.tickCount = 0
-              sprite.walkFrame = sprite.walkFrame === 0 ? 1 : 0
+              sprite.walkPhase = (sprite.walkPhase + 1) % WALK_CYCLE.length
               const variant = variantForCharacter(sprite.character, sprite.departmentId)
-              const walkTexture = sprite.walkFrame === 0 ? variant.walkA : variant.walkB
+              const frame = WALK_CYCLE[sprite.walkPhase]
+              const walkTexture = frame === 'idle' ? variant.idle : frame === 'walkA' ? variant.walkA : variant.walkB
               sprite.charSprite.texture = texturesRef.current.get(walkTexture) ?? sprite.charSprite.texture
             }
           }
@@ -390,10 +389,21 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
     const resizeObserver = new ResizeObserver(() => fitWorld())
     if (containerRef.current) resizeObserver.observe(containerRef.current)
 
+    // Stop the ticker (not the whole app) while the tab is hidden — no
+    // point burning GPU/CPU animating a canvas nobody can see, and the
+    // scene graph/WebGL context stay warm for an instant resume.
+    const onVisibilityChange = () => {
+      if (!appRef.current) return
+      if (document.hidden) appRef.current.ticker.stop()
+      else appRef.current.ticker.start()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
     return () => {
       destroyed = true
       readyRef.current = false
       resizeObserver.disconnect()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
       spritesRef.current.clear()
       plantsRef.current = []
       worldRef.current = null

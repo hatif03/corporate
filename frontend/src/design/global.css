@@ -30,21 +30,98 @@ html, body, #root {
   color: var(--corp-ink-900);
 }
 
+/* Tiny diagonal cream noise — pure CSS, no images. Ported from the
+ * MIT-licensed reference design system, see /THIRD_PARTY_SKILLS.md. */
+body {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(232, 217, 160, 0.20) 0 1px,
+    transparent 1px 6px
+  );
+}
+
+canvas, img, svg {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
 :focus-visible {
-  outline: 2px solid var(--corp-ink-900);
+  outline: 1px solid var(--corp-ink-300);
   outline-offset: 2px;
 }
 
+/* Belt + suspenders for the caret; follow the ink, never the UA scheme. */
+input, textarea {
+  caret-color: var(--corp-ink-900);
+}
+
+input, textarea, select {
+  font: inherit;
+  color: var(--corp-ink-900);
+  background: var(--corp-paper-100);
+  border: none;
+  padding: var(--corp-space-2);
+  box-shadow: inset 0 0 0 1px var(--corp-ink-100);
+  outline: none;
+}
+input:focus, textarea:focus, select:focus {
+  box-shadow: inset 0 0 0 2px var(--corp-ink-700);
+}
+
+/* The mouse text-select I-beam comes from the OS cursor scheme, which
+ * `color-scheme` can't touch — several Windows schemes draw it white with a
+ * hairline outline, invisible on our cream inputs. Replace it with an inked
+ * I-beam wearing a cream halo, readable on cream and on dark surfaces. */
+input, textarea, [contenteditable='true'] {
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='17' height='18'><g fill='none' stroke='%23fdf6e3' stroke-width='4' stroke-linecap='round'><path d='M5 2.5h7M8.5 3v12M5 15.5h7'/></g><g fill='none' stroke='%23261d31' stroke-width='1.6' stroke-linecap='round'><path d='M5 2.5h7M8.5 3v12M5 15.5h7'/></g></svg>") 8 9, text;
+}
+
+/* In-app tooltip: CSS-only via data-tip, no native `title` (unreliable
+ * inside custom title-bar chrome). Usage: className="corp-tip" data-tip="…". */
+.corp-tip { position: relative; }
+.corp-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  white-space: nowrap;
+  padding: 3px 7px 2px;
+  font-family: var(--corp-font-ui);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--corp-cream-100);
+  background: var(--corp-ink-900);
+  box-shadow: inset 0 0 0 1px var(--corp-ink-700);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 90ms ease-out 400ms;
+  z-index: 100;
+}
+.corp-tip:hover::after,
+.corp-tip:focus-visible::after { opacity: 1; }
+.corp-tip-left::after { left: 0; right: auto; }
+.corp-tip-wrap::after {
+  white-space: normal;
+  width: max-content;
+  max-width: 260px;
+  line-height: 15px;
+}
+
+/* Chunky, pixel-feel scrollbars */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--corp-paper-200);
+  background: var(--corp-cream-200);
+  box-shadow: inset 0 0 0 1px var(--corp-ink-100);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--corp-ink-300);
-  box-shadow: inset 0 0 0 1px var(--corp-ink-500);
+  background: var(--corp-ink-700);
+  box-shadow: inset 0 0 0 1px var(--corp-ink-300);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--corp-ink-900);
 }
 
 .corp-panel {

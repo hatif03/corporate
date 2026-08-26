@@ -1,11 +1,31 @@
 import { useEffect, useState } from 'react'
-import { Crown, Mail, Terminal as TerminalIcon } from 'lucide-react'
-import { StatusBadge } from '../../design/StatusBadge'
+import { Icon } from '../../components/Icon'
+import { PixelBadge } from '../../components/PixelBadge'
+import { EditAgentModal } from '../../components/EditAgentModal'
 import { pauseAgent, resumeAgent, watchMessages, type MessageEntry } from '../../lib/platformClient'
+import { SKILLS_BY_DEPARTMENT } from '../../lib/skills'
 import { TerminalView } from '../terminal/TerminalView'
 import type { Agent } from '../../lib/types'
 
-type DetailTab = 'terminal' | 'messages'
+type DetailTab = 'terminal' | 'messages' | 'skills'
+
+function AgentSkills({ agent }: { agent: Agent }) {
+  const skills = SKILLS_BY_DEPARTMENT[agent.department] ?? []
+  return (
+    <div className="corp-panel">
+      {skills.length === 0 && <p className="corp-text-muted">No curated skill excerpts for this department yet — see /THIRD_PARTY_SKILLS.md.</p>}
+      {skills.map((s) => (
+        <div key={`${s.stage}-${s.skill}`} className="corp-divider-row">
+          <strong>{s.stage}</strong>
+          <div style={{ fontSize: '0.9rem' }}>
+            adapted from <em>{s.skill}</em> by {s.author}
+          </div>
+          <div className="corp-text-muted" style={{ fontSize: '0.8rem' }}>{s.source}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function AgentMessages({ orgId, agent }: { orgId: string; agent: Agent }) {
   const [messages, setMessages] = useState<MessageEntry[]>([])
@@ -32,6 +52,7 @@ function AgentMessages({ orgId, agent }: { orgId: string; agent: Agent }) {
 export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent }) {
   const [tab, setTab] = useState<DetailTab>('terminal')
   const [busy, setBusy] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   async function togglePause() {
     setBusy(true)
@@ -47,10 +68,13 @@ export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent 
     <div className="corp-panel" style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
         <h3 style={{ margin: 0 }}>
-          {agent.name} {agent.isCeo && <Crown size={14} aria-label="CEO" style={{ verticalAlign: -2 }} />}
+          {agent.name} {agent.isCeo && <span aria-label="CEO"><Icon name="crown" style={{ verticalAlign: -2 }} /></span>}
         </h3>
         <span className="corp-text-muted">{agent.department}</span>
-        <StatusBadge status={agent.status} />
+        <PixelBadge status={agent.status} />
+        <button className="corp-button" title="Edit persona" onClick={() => setEditing(true)}>
+          <Icon name="edit" />
+        </button>
         <button className="corp-button" style={{ marginLeft: 'auto' }} onClick={togglePause} disabled={busy}>
           {busy ? 'Working…' : agent.paused ? 'Resume' : 'Pause'}
         </button>
@@ -61,22 +85,32 @@ export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent 
           className={`corp-button${tab === 'terminal' ? ' corp-button--active' : ''}`}
           onClick={() => setTab('terminal')}
         >
-          <TerminalIcon size={14} aria-hidden style={{ marginRight: 4, verticalAlign: -2 }} />
+          <Icon name="terminal" style={{ marginRight: 4, verticalAlign: -2 }} />
           Terminal
         </button>
         <button
           className={`corp-button${tab === 'messages' ? ' corp-button--active' : ''}`}
           onClick={() => setTab('messages')}
         >
-          <Mail size={14} aria-hidden style={{ marginRight: 4, verticalAlign: -2 }} />
+          <Icon name="mail" style={{ marginRight: 4, verticalAlign: -2 }} />
           Messages
+        </button>
+        <button
+          className={`corp-button${tab === 'skills' ? ' corp-button--active' : ''}`}
+          onClick={() => setTab('skills')}
+        >
+          <Icon name="sparkle" style={{ marginRight: 4, verticalAlign: -2 }} />
+          Skills
         </button>
       </div>
 
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {tab === 'terminal' && <TerminalView orgId={orgId} agentId={agent.id} />}
         {tab === 'messages' && <AgentMessages orgId={orgId} agent={agent} />}
+        {tab === 'skills' && <AgentSkills agent={agent} />}
       </div>
+
+      {editing && <EditAgentModal orgId={orgId} agent={agent} onClose={() => setEditing(false)} onSaved={() => {}} />}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { Icon } from './Icon'
 
 export function Collapsible({
   title,
@@ -18,9 +18,8 @@ export function Collapsible({
         style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
         onClick={() => setOpen((o) => !o)}
       >
-        <ChevronRight
-          size={14}
-          aria-hidden
+        <Icon
+          name="chevron-right"
           style={{ transition: 'transform 90ms steps(2, end)', transform: open ? 'rotate(90deg)' : 'none' }}
         />
         {title}

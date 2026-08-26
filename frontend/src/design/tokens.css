@@ -61,11 +61,38 @@
   --corp-panel: var(--corp-paper-100);
   --corp-border: var(--corp-ink-900);
   --corp-text: var(--corp-ink-900);
-  --corp-sidebar-width: 220px;
   --corp-rightcol-width: 420px;
+}
 
-  /* dark theme: add a :root[data-theme='dark'] override block here if a
-   * theme toggle is ever built — every component already reads these
-   * custom properties, so it'd be a pure-CSS addition. Not built now,
-   * nothing needs it yet. */
+/* Dark theme — a single token swap darkens the whole app, stamped as
+ * data-theme="dark" on <html> by lib/theme.ts. Ported verbatim (contrast-
+ * audited, not eyeballed — see the source's own comment) from the
+ * MIT-licensed reference design system, see /THIRD_PARTY_SKILLS.md. */
+:root[data-theme='dark'] {
+  --corp-cream-50:  #17171b;
+  --corp-cream-100: #1d1d22;
+  --corp-cream-200: #26262c;
+  --corp-cream-300: #313139;
+  --corp-paper-100: #1a1a1f;
+  --corp-paper-200: #22222b;
+
+  --corp-ink-900: #dedbd6;
+  --corp-ink-700: #b3b0ac;
+  --corp-ink-500: #96919f;
+  --corp-ink-300: #787684;
+  --corp-ink-100: #3e3d46;
+
+  --corp-coral: #e08c82; --corp-coral-light: #3b2724;
+  --corp-mint:  #74c096; --corp-mint-light:  #1e3227;
+  --corp-sky:   #6fb3c4; --corp-sky-light:   #1f3238;
+  --corp-lemon: #cfaa57; --corp-lemon-light: #332c1d;
+  --corp-lilac: #a896e3; --corp-lilac-light: #2b2740;
+  --corp-peach: #dfa57f; --corp-peach-light: #352822;
+
+  --status-idle: #6f6c77; --status-thinking: #64acbb; --status-working: #d8b052;
+  --status-waiting: #8095dc; --status-blocked: #df8078; --status-success: #6fb88b;
+  --status-ghost: #6c6a76; --status-compacting: #9d8bd2; --status-looping: #d69a55;
+  --status-typing: #cba24a;
+
+  --corp-shadow-hard: 4px 4px 0 rgba(0, 0, 0, 0.45);
 }

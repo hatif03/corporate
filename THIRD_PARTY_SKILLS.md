@@ -22,21 +22,46 @@ Claude-Code editor hook, not domain knowledge an LLM turn can act on),
 review), `emails` (multi-email sequence design doesn't apply to
 `copy_drafter`, which drafts one piece of copy per task).
 
-## Frontend design system
+## Frontend design system and UI
 
-`frontend/src/design/tokens.css` and `frontend/src/design/global.css` adapt
-the color palette, type scale, spacing scale, shadow/border system, and CSS
-animation mechanics (stepped-timing hover/press/tab/status-dot patterns)
-from an MIT-licensed reference app's design system. Fonts (Press Start 2P,
-Inter, JetBrains Mono), color tokens, and interaction timings are a close
-adaptation; Corporate's own office-floor scene (`frontend/src/scene/office/`,
-Kenney CC0 tileset), agent/department content, and all product copy are
-original to this project — no branded characters or copy from the reference
-are reproduced.
+A full pixel-level clone of an MIT-licensed reference app's UI, at the
+user's explicit request ("copy everything, to the last detail"), fetched
+directly from the live repo via `gh api` (not docs, not assumptions) and
+ported with attribution:
+
+- `frontend/src/design/tokens.css` / `global.css`: the complete light and
+  dark token sets (colors, type scale, spacing, shadows), the cream
+  noise-texture background, custom scrollbars, the custom text cursor, the
+  focus ring, the `.corp-tip` tooltip system, and the step-timing
+  animations are direct ports, not just "adapted."
+- `frontend/src/lib/theme.ts`: the light/dark theme-toggle module, ported
+  near-verbatim.
+- `frontend/src/components/{PixelButton,PixelBadge,PixelPanel,Icon,
+  AgentCard,AgentStrip,SidebarSplitter}.tsx`: component primitives and the
+  bottom-strip roster layout, ported with data fields adapted to
+  Corporate's own model (Agent.action/note/progress) in place of fields
+  with no Corporate equivalent (a context-token gauge, drag-to-reorder).
+  `Icon.tsx`'s 24 pixel-SVG icons are the reference's literal path data;
+  icons for tabs the reference doesn't have (Knowledge, Graph, Memory,
+  etc.) are original, drawn in the same 16x16/hairline style.
+- The title-bar -> office-floor -> bottom-roster-strip layout skeleton is
+  a direct structural port.
+
+**Not copied, and why** (see `docs/PROJECT_HISTORY.md` and
+`docs/adr/0016-agent-capability-expansion.md` for the full reasoning):
+the reference's own tileset art (LimeZu "Modern Interiors", separately
+licensed, not covered by the MIT grant on their original code — Corporate
+keeps its Kenney CC0 tileset, rearranged into the same open-plan-floor
+layout philosophy instead), "The Office" character names/personas/
+dialogue and the "Munder Difflin" brand (thematic/trademark-adjacent
+parody content specific to their product identity — Corporate keeps its
+own name, logo, and original agent personas), and anything with no
+Corporate equivalent (a real interactive pty terminal, Monaco/git/file-tree
+panels, AI-engine/MCP settings, Electron-only window chrome).
 
 | Source | Author | License | Link |
 |---|---|---|---|
-| Design system (colors, type, spacing, shadows, animation) | chaitanyagiri | MIT | https://github.com/chaitanyagiri/munder-difflin |
+| Design system + UI components (colors, type, spacing, shadows, animation, layout, icons) | chaitanyagiri | MIT | https://github.com/chaitanyagiri/munder-difflin |
 
 ## Agent loop hardening
 

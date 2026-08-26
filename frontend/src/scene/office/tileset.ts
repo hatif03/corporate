@@ -10,20 +10,18 @@
 // — used as the two alternating "walk" frames. Row r's triple is
 // (27r+24, 27r+25, 27r+26).
 //
-// tile_0210 was previously (wrongly) used as "the desk" — it's actually a
-// brick-wall-with-baseboard texture tile, confirmed by rendering it in
-// isolation; now correctly used as WALL_TILE below. tile_0300 (a wooden
-// dresser/drawer unit) is the closest desk-shaped furniture this pack
-// actually has — this pack is an outdoor/urban RPG set, not an
-// office-interior set, so there's no literal desk+monitor sprite available;
-// a real office-furniture pack (Kenney's Furniture Kit, also CC0) exists
-// but renders in a soft-shaded/isometric style that doesn't match this
-// pack's flat hard-pixel look, so mixing them would read as visually
-// inconsistent rather than more "office-like" — see ADR/plan notes.
-// Decorative furniture below (cabinet/plant/trash/art/bookshelf) and the
-// wall/door/corridor-floor tiles are all picked the same way — real
-// furniture/architecture-shaped tiles, not textures, each individually
-// rendered and inspected, not guessed from the packed tilemap thumbnail.
+// tile_0300 (a wooden dresser/drawer unit) is the closest desk-shaped
+// furniture this pack actually has — this pack is an outdoor/urban RPG
+// set, not an office-interior set, so there's no literal desk+monitor
+// sprite available; a real office-furniture pack (Kenney's Furniture Kit,
+// also CC0) exists but renders in a soft-shaded/isometric style that
+// doesn't match this pack's flat hard-pixel look, so mixing them would
+// read as visually inconsistent rather than more "office-like" — see
+// ADR/plan notes. Decorative furniture below (cabinet/plant/trash/art/
+// bookshelf) is picked the same way — real furniture-shaped tiles, not
+// textures, each individually rendered and inspected, not guessed from the
+// packed tilemap thumbnail. No wall/door tiles: the office floor is open
+// plan (see /THIRD_PARTY_SKILLS.md), not walled rooms.
 
 import floorTile from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0081.png'
 import deskTile from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0300.png'
@@ -32,9 +30,6 @@ import bookshelfTile from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/ti
 import plantTile from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0259.png'
 import trashTile from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0279.png'
 import artTile from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0391.png'
-import wallTile from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0210.png'
-import doorTile from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0405.png'
-import corridorFloorTile from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0419.png'
 
 import char0Idle from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0025.png'
 import char0WalkA from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0024.png'
@@ -75,9 +70,6 @@ export const BOOKSHELF_TILE = bookshelfTile
 export const PLANT_TILE = plantTile
 export const TRASH_TILE = trashTile
 export const ART_TILE = artTile
-export const WALL_TILE = wallTile
-export const DOOR_TILE = doorTile
-export const CORRIDOR_FLOOR_TILE = corridorFloorTile
 
 export interface CharacterVariant {
   idle: string

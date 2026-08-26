@@ -3,12 +3,35 @@ import { Collapsible } from '../../components/Collapsible'
 import {
   createTrigger,
   deleteTrigger,
+  getTriggerHistory,
   toggleTrigger,
   watchTriggers,
+  type TriggerHistoryEntry,
 } from '../../lib/platformClient'
 import type { Trigger, TriggerType } from '../../lib/types'
 
+function TriggerHistoryList({ orgId, triggerId }: { orgId: string; triggerId: string }) {
+  const [history, setHistory] = useState<TriggerHistoryEntry[] | null>(null)
+
+  useEffect(() => {
+    getTriggerHistory(orgId, triggerId).then(setHistory)
+  }, [orgId, triggerId])
+
+  if (history === null) return <p className="corp-text-muted" style={{ fontSize: '0.8rem' }}>Loading…</p>
+  if (history.length === 0) return <p className="corp-text-muted" style={{ fontSize: '0.8rem' }}>Never fired yet.</p>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {history.map((h) => (
+        <div key={h.id} className="corp-text-muted" style={{ fontSize: '0.8rem' }}>
+          {new Date(h.firedAt).toLocaleString()} — {h.payloadPreview || '(empty payload)'}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function TriggerRow({ orgId, t }: { orgId: string; t: Trigger }) {
+  const [showHistory, setShowHistory] = useState(false)
   return (
     <div className="corp-divider-row">
       <strong>{t.name}</strong> <span className="corp-badge" style={{ background: 'var(--corp-sky-light)' }}>{t.type}</span>
@@ -26,7 +49,15 @@ function TriggerRow({ orgId, t }: { orgId: string; t: Trigger }) {
         <button className="corp-button" onClick={() => deleteTrigger(orgId, t.id)}>
           Delete
         </button>
+        <button className="corp-button" onClick={() => setShowHistory((s) => !s)}>
+          {showHistory ? 'Hide history' : 'History'}
+        </button>
       </div>
+      {showHistory && (
+        <div style={{ marginTop: 6 }}>
+          <TriggerHistoryList orgId={orgId} triggerId={t.id} />
+        </div>
+      )}
     </div>
   )
 }

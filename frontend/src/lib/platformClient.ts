@@ -137,6 +137,18 @@ async function post(path: string, body: unknown): Promise<unknown> {
   return res.json()
 }
 
+async function patch(path: string, body: unknown): Promise<unknown> {
+  const res = await fetch(`${BACKEND_URL}${path}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    throw new Error(`${path} failed: ${res.status} ${await res.text()}`)
+  }
+  return res.json()
+}
+
 async function del(path: string): Promise<unknown> {
   const res = await fetch(`${BACKEND_URL}${path}`, { method: 'DELETE', headers: await authHeaders() })
   if (!res.ok) {
@@ -172,6 +184,16 @@ export function toggleTrigger(orgId: string, triggerId: string, enabled: boolean
 
 export function deleteTrigger(orgId: string, triggerId: string): Promise<unknown> {
   return del(`/api/org/${orgId}/triggers/${triggerId}`)
+}
+
+export interface TriggerHistoryEntry {
+  id: string
+  firedAt: string
+  payloadPreview: string
+}
+
+export function getTriggerHistory(orgId: string, triggerId: string): Promise<TriggerHistoryEntry[]> {
+  return get(`/api/org/${orgId}/triggers/${triggerId}/history`) as Promise<TriggerHistoryEntry[]>
 }
 
 export function watchWorkers(orgId: string, onChange: (workers: Worker[]) => void): () => void {
@@ -238,6 +260,17 @@ export function pauseAgent(orgId: string, agentId: string): Promise<{ paused: bo
 
 export function resumeAgent(orgId: string, agentId: string): Promise<{ paused: boolean }> {
   return post(`/api/org/${orgId}/agents/${agentId}/resume`, {}) as Promise<{ paused: boolean }>
+}
+
+export interface AgentPersonaUpdate {
+  name?: string
+  description?: string
+  character?: string
+  accent_color?: string
+}
+
+export function updateAgentPersona(orgId: string, agentId: string, update: AgentPersonaUpdate): Promise<Agent> {
+  return patch(`/api/org/${orgId}/agents/${agentId}`, update) as Promise<Agent>
 }
 
 // ---- knowledge base (per-department org-uploaded documents) ----

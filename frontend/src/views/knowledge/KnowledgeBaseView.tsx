@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Icon } from '../../components/Icon'
 import { createKnowledgeDoc, deleteKnowledgeDoc, listKnowledgeDocs, type KnowledgeDoc } from '../../lib/platformClient'
 import type { Agent } from '../../lib/types'
 
@@ -111,7 +111,7 @@ export function KnowledgeBaseView({ orgId, agents }: { orgId: string; agents: Ag
               <div style={{ fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>{d.text.length > 300 ? `${d.text.slice(0, 300)}…` : d.text}</div>
             </div>
             <button className="corp-button" title="Delete" onClick={() => remove(d.id)}>
-              <Trash2 size={14} aria-hidden />
+              <Icon name="trash" />
             </button>
           </div>
         ))}

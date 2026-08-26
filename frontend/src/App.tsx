@@ -1,19 +1,14 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import {
-  Activity as ActivityIcon,
-  BookOpen,
-  Brain,
-  Code2,
-  ListChecks,
-  MessageCircleQuestion,
-  Monitor as MonitorIcon,
-  Settings as SettingsIcon,
-  Share2,
-  Wrench,
-  Zap,
-} from 'lucide-react'
+import { Icon, type IconName } from './components/Icon'
+import { PixelButton } from './components/PixelButton'
+import { PixelPanel } from './components/PixelPanel'
+import { TitleBar } from './components/TitleBar'
+import { SettingsModal } from './components/SettingsModal'
+import { AgentStrip } from './components/AgentStrip'
+import { SidebarSplitter } from './components/SidebarSplitter'
+import { CompletionToast } from './components/CompletionToast'
+import { CommandPalette } from './components/CommandPalette'
 import { OfficeFloor } from './scene/office/OfficeFloor'
-import { Sidebar } from './components/Sidebar'
 import { AgentDetailView } from './views/agent-detail/AgentDetailView'
 import { MonitorView } from './views/monitor/MonitorView'
 import { TasksView } from './views/tasks/TasksView'
@@ -23,7 +18,6 @@ import { TriggersView } from './views/triggers/TriggersView'
 import { WorkersView } from './views/workers/WorkersView'
 import { MemoryView } from './views/memory/MemoryView'
 import { GraphView } from './views/graph/GraphView'
-import { SettingsView } from './views/settings/SettingsView'
 import { CommandsView } from './views/commands/CommandsView'
 import { KnowledgeBaseView } from './views/knowledge/KnowledgeBaseView'
 import { watchAgents, watchTasks } from './lib/platformClient'
@@ -32,32 +26,32 @@ import type { Agent, Task } from './lib/types'
 import type { User } from 'firebase/auth'
 
 const ORG_ID = import.meta.env.VITE_ORG_ID ?? 'demo'
+const SIDEBAR_WIDTH_KEY = 'corp.sidebarWidth'
+const DEFAULT_SIDEBAR_WIDTH = 420
 
-type Tab =
-  | 'monitor'
-  | 'tasks'
-  | 'askme'
-  | 'activity'
-  | 'triggers'
-  | 'workers'
-  | 'memory'
-  | 'knowledge'
-  | 'graph'
-  | 'settings'
-  | 'commands'
+type Tab = 'monitor' | 'tasks' | 'askme' | 'activity' | 'triggers' | 'workers' | 'memory' | 'knowledge' | 'graph' | 'commands'
 
-const TAB_ICONS: Record<Tab, typeof MonitorIcon> = {
-  monitor: MonitorIcon,
-  tasks: ListChecks,
-  askme: MessageCircleQuestion,
-  activity: ActivityIcon,
-  triggers: Zap,
-  workers: Wrench,
-  memory: Brain,
-  knowledge: BookOpen,
-  graph: Share2,
-  settings: SettingsIcon,
-  commands: Code2,
+const TAB_ICONS: Record<Tab, IconName> = {
+  monitor: 'monitor',
+  tasks: 'list',
+  askme: 'question',
+  activity: 'activity',
+  triggers: 'zap',
+  workers: 'wrench',
+  memory: 'brain',
+  knowledge: 'book',
+  graph: 'share',
+  commands: 'code',
+}
+
+function loadSidebarWidth(): number {
+  try {
+    const raw = window.localStorage.getItem(SIDEBAR_WIDTH_KEY)
+    const n = raw ? Number(raw) : NaN
+    return Number.isFinite(n) ? n : DEFAULT_SIDEBAR_WIDTH
+  } catch {
+    return DEFAULT_SIDEBAR_WIDTH
+  }
 }
 
 function AskMeTabLabel({ pendingCount }: { pendingCount: number }) {
@@ -71,7 +65,7 @@ function AskMeTabLabel({ pendingCount }: { pendingCount: number }) {
 function SignInGate() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--corp-space-6)' }}>
-      <div className="corp-panel" style={{ maxWidth: 420, textAlign: 'center', padding: 'var(--corp-space-6)' }}>
+      <PixelPanel variant="dialog" style={{ maxWidth: 420, textAlign: 'center', padding: 'var(--corp-space-6)' }}>
         <h1
           style={{
             margin: '0 0 var(--corp-space-4)',
@@ -87,33 +81,11 @@ function SignInGate() {
           A company of autonomous AI department agents, working on a live office floor —
           sign in to watch your team and dispatch new work.
         </p>
-        <button className="corp-button" onClick={() => signInWithGoogle()} style={{ width: '100%' }}>
+        <PixelButton variant="primary" fullWidth onClick={() => signInWithGoogle()}>
           Sign in with Google
-        </button>
-      </div>
+        </PixelButton>
+      </PixelPanel>
     </div>
-  )
-}
-
-function UserAvatar({ user }: { user: User }) {
-  if (user.photoURL) {
-    return (
-      <img
-        src={user.photoURL}
-        referrerPolicy="no-referrer"
-        alt=""
-        style={{ width: 28, height: 28, boxShadow: 'var(--corp-border-panel)' }}
-      />
-    )
-  }
-  const initial = (user.email ?? '?').charAt(0).toUpperCase()
-  return (
-    <span
-      className="corp-badge"
-      style={{ width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--corp-sky-light)' }}
-    >
-      {initial}
-    </span>
   )
 }
 
@@ -135,15 +107,12 @@ function DashboardTabs({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       <nav style={{ display: 'flex', gap: 'var(--corp-space-2)', flexWrap: 'wrap', marginBottom: 'var(--corp-space-3)', flexShrink: 0 }}>
-        {tabs.map((t) => {
-          const Icon = TAB_ICONS[t.id]
-          return (
-            <button key={t.id} className={`corp-button${tab === t.id ? ' corp-button--active' : ''}`} onClick={() => setTab(t.id)}>
-              <Icon size={14} aria-hidden style={{ marginRight: 4, verticalAlign: -2 }} />
-              {t.label}
-            </button>
-          )
-        })}
+        {tabs.map((t) => (
+          <PixelButton key={t.id} variant={tab === t.id ? 'primary' : 'secondary'} size="sm" onClick={() => setTab(t.id)}>
+            <Icon name={TAB_ICONS[t.id]} style={{ marginRight: 4 }} />
+            {t.label}
+          </PixelButton>
+        ))}
       </nav>
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {tab === 'monitor' && <MonitorView orgId={orgId} agents={agents} />}
@@ -155,7 +124,6 @@ function DashboardTabs({
         {tab === 'memory' && <MemoryView orgId={orgId} agents={agents} />}
         {tab === 'knowledge' && <KnowledgeBaseView orgId={orgId} agents={agents} />}
         {tab === 'graph' && <GraphView orgId={orgId} agents={agents} />}
-        {tab === 'settings' && <SettingsView orgId={orgId} agents={agents} />}
         {tab === 'commands' && <CommandsView orgId={orgId} />}
       </div>
     </div>
@@ -168,6 +136,8 @@ function App() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
+  const [sidebarWidth, setSidebarWidth] = useState(loadSidebarWidth)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => watchAuthState(setUser), [])
   useEffect(() => (user ? watchAgents(ORG_ID, setAgents) : undefined), [user])
@@ -177,12 +147,21 @@ function App() {
     if (selectedAgentId && !agents.some((a) => a.id === selectedAgentId)) setSelectedAgentId(null)
   }, [agents, selectedAgentId])
 
+  function updateSidebarWidth(px: number) {
+    setSidebarWidth(px)
+    try {
+      window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(px))
+    } catch {
+      /* noop */
+    }
+  }
+
   if (user === undefined) return null // brief auth-state check on load
   if (user === null) return <SignInGate />
 
   const pendingCount = tasks.filter((t) => t.hasPendingHumanQa).length
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
-  const rightColumnShowsDetail = !!selectedAgent && !selectedAgent.isCeo
+  const rightPanelShowsDetail = !!selectedAgent && !selectedAgent.isCeo
 
   function handleSelectAgent(agentId: string) {
     setSelectedAgentId((current) => (current === agentId ? null : agentId))
@@ -198,55 +177,36 @@ function App() {
     { id: 'memory', label: 'Memory' },
     { id: 'knowledge', label: 'Knowledge' },
     { id: 'graph', label: 'Graph' },
-    { id: 'settings', label: 'Settings' },
     { id: 'commands', label: 'Commands' },
   ]
 
   return (
-    <div
-      style={{
-        height: '100vh',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: 'var(--corp-space-5)',
-        gap: 'var(--corp-space-4)',
-        maxWidth: 1800,
-        margin: '0 auto',
-        width: '100%',
-      }}
-    >
-      <header style={{ display: 'flex', alignItems: 'center', gap: 'var(--corp-space-4)', flexShrink: 0 }}>
-        <h1 style={{ margin: 0, fontFamily: 'var(--corp-font-display)', fontSize: 'var(--corp-text-display-md)', lineHeight: 'var(--corp-lh-display-md)' }}>
-          Corporate
-        </h1>
-        <span className="corp-badge" style={{ background: 'var(--corp-sky-light)' }}>
-          org: {ORG_ID}
-        </span>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 'var(--corp-space-2)' }}>
-          <UserAvatar user={user} />
-          <span className="corp-text-muted">{user.email}</span>
-          <button className="corp-button" onClick={() => signOutUser()}>
-            Sign out
-          </button>
+    <div style={{ height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <TitleBar orgId={ORG_ID} user={user} onOpenSettings={() => setSettingsOpen(true)} onSignOut={() => signOutUser()} />
+
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', padding: 'var(--corp-space-4)' }}>
+          <main style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+            <OfficeFloor agents={agents} />
+          </main>
+
+          <SidebarSplitter width={sidebarWidth} onChange={updateSidebarWidth} viewportWidth={window.innerWidth} />
+
+          <div className="corp-panel" style={{ width: sidebarWidth, flexShrink: 0, minHeight: 0, overflow: 'hidden' }}>
+            {rightPanelShowsDetail ? (
+              <AgentDetailView orgId={ORG_ID} agent={selectedAgent!} />
+            ) : (
+              <DashboardTabs orgId={ORG_ID} agents={agents} tasks={tasks} tab={tab} setTab={setTab} tabs={tabs} />
+            )}
+          </div>
         </div>
-      </header>
 
-      <div style={{ display: 'flex', gap: 'var(--corp-space-4)', flex: 1, minHeight: 0 }}>
-        <Sidebar agents={agents} selectedAgentId={selectedAgentId} onSelect={handleSelectAgent} />
-
-        <main className="corp-panel" style={{ flex: 1, minWidth: 0, minHeight: 0, height: '100%', padding: 0, overflow: 'hidden' }}>
-          <OfficeFloor agents={agents} />
-        </main>
-
-        <div className="corp-panel" style={{ width: 'var(--corp-rightcol-width)', flexShrink: 0, height: '100%', minHeight: 0, overflow: 'hidden' }}>
-          {rightColumnShowsDetail ? (
-            <AgentDetailView orgId={ORG_ID} agent={selectedAgent!} />
-          ) : (
-            <DashboardTabs orgId={ORG_ID} agents={agents} tasks={tasks} tab={tab} setTab={setTab} tabs={tabs} />
-          )}
-        </div>
+        <AgentStrip agents={agents} tasks={tasks} selectedAgentId={selectedAgentId} onSelect={handleSelectAgent} />
       </div>
+
+      {settingsOpen && <SettingsModal orgId={ORG_ID} agents={agents} onClose={() => setSettingsOpen(false)} />}
+      <CompletionToast tasks={tasks} />
+      <CommandPalette orgId={ORG_ID} agents={agents} onSelectAgent={handleSelectAgent} />
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { StatusBadge } from '../../design/StatusBadge'
+import { PixelBadge } from '../../components/PixelBadge'
 import { dispatchGoal } from '../../lib/platformClient'
 import type { Agent } from '../../lib/types'
 
@@ -80,7 +80,7 @@ export function MonitorView({ orgId, agents }: { orgId: string; agents: Agent[] 
                 </td>
                 <td>{a.department}</td>
                 <td>
-                  <StatusBadge status={a.status} />
+                  <PixelBadge status={a.status} />
                 </td>
                 <td>{a.action || a.note || '—'}</td>
               </tr>
