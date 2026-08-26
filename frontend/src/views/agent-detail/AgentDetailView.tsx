@@ -1,0 +1,79 @@
+import { useEffect, useState } from 'react'
+import { StatusBadge } from '../../design/StatusBadge'
+import { pauseAgent, resumeAgent, watchMessages, type MessageEntry } from '../../lib/platformClient'
+import { TerminalView } from '../terminal/TerminalView'
+import type { Agent } from '../../lib/types'
+
+type DetailTab = 'terminal' | 'messages'
+
+function AgentMessages({ orgId, agent }: { orgId: string; agent: Agent }) {
+  const [messages, setMessages] = useState<MessageEntry[]>([])
+
+  useEffect(() => watchMessages(orgId, setMessages), [orgId])
+
+  const relevant = messages.filter((m) => m.from === agent.id || m.to === agent.id)
+
+  return (
+    <div className="corp-panel">
+      {relevant.length === 0 && <p>No messages for this agent yet.</p>}
+      {relevant.map((m) => (
+        <div key={m.id} style={{ borderBottom: '1px solid #ddd', padding: '6px 0', fontSize: '0.9rem' }}>
+          <strong>{m.from} → {m.to}</strong>{' '}
+          <span className="corp-badge" style={{ background: 'var(--corp-accent-sky)' }}>{m.act}</span>
+          <div>{m.subject}</div>
+          <div style={{ color: '#888', fontSize: '0.8rem' }}>{m.createdAt}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent }) {
+  const [tab, setTab] = useState<DetailTab>('terminal')
+  const [busy, setBusy] = useState(false)
+
+  async function togglePause() {
+    setBusy(true)
+    try {
+      if (agent.paused) await resumeAgent(orgId, agent.id)
+      else await pauseAgent(orgId, agent.id)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="corp-panel" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <h3 style={{ margin: 0 }}>
+          {agent.name} {agent.isCeo && <span title="CEO">👑</span>}
+        </h3>
+        <span style={{ color: '#666' }}>{agent.department}</span>
+        <StatusBadge status={agent.status} />
+        <button className="corp-button" style={{ marginLeft: 'auto' }} onClick={togglePause} disabled={busy}>
+          {busy ? 'Working…' : agent.paused ? 'Resume' : 'Pause'}
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          className="corp-button"
+          style={{ background: tab === 'terminal' ? 'var(--corp-accent-sky)' : undefined }}
+          onClick={() => setTab('terminal')}
+        >
+          Terminal
+        </button>
+        <button
+          className="corp-button"
+          style={{ background: tab === 'messages' ? 'var(--corp-accent-sky)' : undefined }}
+          onClick={() => setTab('messages')}
+        >
+          Messages
+        </button>
+      </div>
+
+      {tab === 'terminal' && <TerminalView orgId={orgId} agentId={agent.id} />}
+      {tab === 'messages' && <AgentMessages orgId={orgId} agent={agent} />}
+    </div>
+  )
+}

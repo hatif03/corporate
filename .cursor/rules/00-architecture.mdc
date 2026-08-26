@@ -40,7 +40,7 @@ Corporate is a hosted, cloud-native multi-agent web app: a 2D office-floor UI wh
 
 ## A2A and Antigravity
 
-A2A is boundary-only (exposing Sales/Support externally), never for internal CEO-to-department messaging. The Antigravity SDK is optional/non-core, scoped to one stretch feature — don't add the dependency elsewhere.
+A2A is boundary-only (exposing Sales/Support externally), never for internal CEO-to-department messaging. Antigravity (SDK and CLI) is evaluated-and-rejected, not a dependency — see ADR-0014. Don't re-add without re-checking that ADR first.
 
 ## Secrets
 

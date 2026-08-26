@@ -11,11 +11,13 @@ router = APIRouter(prefix="/api/org/{org_id}/workers", tags=["workers"])
 class SpawnWorkerRequest(BaseModel):
     source_event: str
     prompt: str
+    target_agent: str | None = None
+    model_tier: str = "flash"
 
 
 @router.post("")
 async def spawn(org_id: str, body: SpawnWorkerRequest) -> dict:
-    worker_id = spawn_worker(org_id, body.source_event, body.prompt)
+    worker_id = spawn_worker(org_id, body.source_event, body.prompt, body.target_agent, body.model_tier)
     return {"worker_id": worker_id}
 
 

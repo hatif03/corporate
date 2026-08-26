@@ -57,6 +57,7 @@ class Agent(BaseModel):
     is_ceo: bool = False
     provider: str = "adk"
     model: str = ""
+    paused: bool = False
     adk_session_id: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

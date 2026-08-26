@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import audit, integrations, internal, memory, org, triggers, workers
+from app.api import agents, audit, integrations, internal, memory, org, triggers, workers
 from app.config import settings
 from app.services.auth import require_internal_oidc, require_org_member
 
@@ -58,6 +58,7 @@ app.include_router(triggers.internal_router, dependencies=[Depends(require_inter
 # accidentally ship without auth. See app/services/auth.py.
 _org_scoped_dependency = [Depends(require_org_member)]
 app.include_router(org.router, dependencies=_org_scoped_dependency)
+app.include_router(agents.router, dependencies=_org_scoped_dependency)
 app.include_router(audit.router, dependencies=_org_scoped_dependency)
 app.include_router(triggers.router, dependencies=_org_scoped_dependency)
 app.include_router(workers.router, dependencies=_org_scoped_dependency)

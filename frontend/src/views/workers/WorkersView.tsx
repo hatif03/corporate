@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { spawnWorker, stopWorker, watchWorkers } from '../../lib/platformClient'
-import type { Worker } from '../../lib/types'
+import type { Agent, Worker } from '../../lib/types'
 
 const STATUS_COLOR: Record<Worker['status'], string> = {
   spawned: 'var(--status-idle)',
@@ -9,34 +9,80 @@ const STATUS_COLOR: Record<Worker['status'], string> = {
   failed: 'var(--status-blocked)',
 }
 
-export function WorkersView({ orgId }: { orgId: string }) {
+type Step = 'briefing' | 'target'
+
+export function WorkersView({ orgId, agents }: { orgId: string; agents: Agent[] }) {
   const [workers, setWorkers] = useState<Worker[]>([])
+  const [step, setStep] = useState<Step>('briefing')
   const [prompt, setPrompt] = useState('')
+  const [targetAgent, setTargetAgent] = useState('')
+  const [modelTier, setModelTier] = useState<'flash' | 'pro'>('flash')
 
   useEffect(() => watchWorkers(orgId, setWorkers), [orgId])
 
   async function submit() {
     if (!prompt.trim()) return
-    await spawnWorker(orgId, 'manual-test', prompt)
+    await spawnWorker(orgId, 'manual-test', prompt, targetAgent || null, modelTier)
     setPrompt('')
+    setTargetAgent('')
+    setModelTier('flash')
+    setStep('briefing')
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="corp-panel">
         <h3 style={{ marginTop: 0 }}>Spawn a test worker</h3>
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="An inbound event to hand to an ephemeral worker…"
-          rows={2}
-          style={{ width: '100%', fontFamily: 'inherit' }}
-        />
-        <div style={{ marginTop: 8 }}>
-          <button className="corp-button" onClick={submit}>
-            Spawn
-          </button>
-        </div>
+
+        {step === 'briefing' && (
+          <>
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="An inbound event to hand to an ephemeral worker…"
+              rows={2}
+              style={{ width: '100%', fontFamily: 'inherit' }}
+            />
+            <div style={{ marginTop: 8 }}>
+              <button className="corp-button" onClick={() => prompt.trim() && setStep('target')} disabled={!prompt.trim()}>
+                Next
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 'target' && (
+          <>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+              <label>
+                Target agent{' '}
+                <select value={targetAgent} onChange={(e) => setTargetAgent(e.target.value)}>
+                  <option value="">(none — worker replies directly)</option>
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Model tier{' '}
+                <select value={modelTier} onChange={(e) => setModelTier(e.target.value as 'flash' | 'pro')}>
+                  <option value="flash">flash</option>
+                  <option value="pro">pro</option>
+                </select>
+              </label>
+            </div>
+            <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+              <button className="corp-button" onClick={() => setStep('briefing')}>
+                Back
+              </button>
+              <button className="corp-button" onClick={submit}>
+                Spawn
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="corp-panel">

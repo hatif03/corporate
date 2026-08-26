@@ -84,6 +84,13 @@ def audited_task(department_id: str) -> Callable[[OnTaskReceived], OnTaskReceive
             store.update_task(org_id, task.id, status=TaskStatus.DOING.value)
 
             try:
+                agent = store.get_agent(org_id, department_id)
+                if agent is not None and agent.paused:
+                    # Reuses the same except-block below (BLOCKED + HumanQA +
+                    # REFUSE) rather than a parallel "paused" path — a paused
+                    # agent should surface exactly like any other failure to
+                    # process, not silently drop the task or retry forever.
+                    raise RuntimeError(f"{department_id} is paused — resume it to process this task")
                 result = await fn(org_id, task)
             except Exception as exc:  # noqa: BLE001 - a department failure must never crash the dispatch path
                 audit_chain.append_entry(

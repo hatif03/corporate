@@ -35,6 +35,7 @@ export interface Agent {
   isCeo: boolean
   provider: string
   model: string
+  paused: boolean
 }
 
 export type TaskStatus = 'todo' | 'doing' | 'blocked' | 'done'

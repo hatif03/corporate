@@ -47,6 +47,10 @@ async def handle_agent_turn(org_id: str, agent_id: str, message: Message) -> Non
             return
 
         if agent_id == "ceo":
+            ceo_agent = store.get_agent(org_id, "ceo")
+            if ceo_agent is not None and ceo_agent.paused:
+                store.log_activity(org_id, "ceo", "paused-skipped", f"message {message.id} skipped — CEO is paused")
+                return
             prompt = f"Message from {message.from_} ({message.act.value}) — {message.subject}: {message.body}"
             if message.attachment:
                 # Stash it so create_task (app/adk_agents/tools/universal.py)

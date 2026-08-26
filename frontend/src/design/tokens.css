@@ -17,6 +17,8 @@
   --status-blocked: #ff6b6b;
   --status-success: #6bcf7f;
   --status-ghost: #d9cfe0;
+
+  --corp-sidebar-width: 220px;
 }
 
 * {

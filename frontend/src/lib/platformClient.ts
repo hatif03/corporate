@@ -180,8 +180,19 @@ export function watchWorkers(orgId: string, onChange: (workers: Worker[]) => voi
   })
 }
 
-export function spawnWorker(orgId: string, sourceEvent: string, prompt: string): Promise<{ worker_id: string }> {
-  return post(`/api/org/${orgId}/workers`, { source_event: sourceEvent, prompt }) as Promise<{ worker_id: string }>
+export function spawnWorker(
+  orgId: string,
+  sourceEvent: string,
+  prompt: string,
+  targetAgent?: string | null,
+  modelTier?: 'flash' | 'pro',
+): Promise<{ worker_id: string }> {
+  return post(`/api/org/${orgId}/workers`, {
+    source_event: sourceEvent,
+    prompt,
+    target_agent: targetAgent ?? null,
+    model_tier: modelTier ?? 'flash',
+  }) as Promise<{ worker_id: string }>
 }
 
 export function stopWorker(orgId: string, workerId: string): Promise<unknown> {
@@ -219,4 +230,12 @@ export function getSettings(orgId: string): Promise<OrgSettings> {
 
 export function updateSettings(orgId: string, dailyGeminiCallLimit: number | null): Promise<OrgSettings> {
   return post(`/api/org/${orgId}/settings`, { daily_gemini_call_limit: dailyGeminiCallLimit }) as Promise<OrgSettings>
+}
+
+export function pauseAgent(orgId: string, agentId: string): Promise<{ paused: boolean }> {
+  return post(`/api/org/${orgId}/agents/${agentId}/pause`, {}) as Promise<{ paused: boolean }>
+}
+
+export function resumeAgent(orgId: string, agentId: string): Promise<{ paused: boolean }> {
+  return post(`/api/org/${orgId}/agents/${agentId}/resume`, {}) as Promise<{ paused: boolean }>
 }

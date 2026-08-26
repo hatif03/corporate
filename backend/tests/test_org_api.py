@@ -53,6 +53,26 @@ def test_update_settings_rejects_zero_limit():
     assert response.status_code == 400
 
 
+def test_pause_and_resume_agent():
+    from app.models import Agent
+
+    agent = Agent(id="engineering_sre", name="SRE", department="engineering_sre")
+    with (
+        patch("app.api.agents.store.get_agent", return_value=agent),
+        patch("app.api.agents.store.set_agent_paused") as mock_set,
+    ):
+        response = client.post("/api/org/demo/agents/engineering_sre/pause")
+    assert response.status_code == 200
+    assert response.json() == {"paused": True}
+    assert mock_set.call_args.args == ("demo", "engineering_sre", True)
+
+
+def test_pause_unknown_agent_404s():
+    with patch("app.api.agents.store.get_agent", return_value=None):
+        response = client.post("/api/org/demo/agents/nope/pause")
+    assert response.status_code == 404
+
+
 def test_update_settings_accepts_valid_limit():
     with (
         patch("app.api.org.store.update_org_settings") as mock_update,

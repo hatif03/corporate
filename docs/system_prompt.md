@@ -77,9 +77,9 @@ First real consumer: `departments/engineering_sre/tools.py`'s `notify_slack_chan
 
 A2A (`to_a2a()` / `RemoteA2aAgent`, both built into ADK) is used only to expose specific external-facing department agents (Sales and/or Support) as A2A servers for genuinely external callers. It is never used for internal CEO-to-department messaging — that stays on Pub/Sub. See ADR-0004. Don't add A2A anywhere else without a new ADR justifying it.
 
-## Antigravity SDK — optional, non-core
+## Antigravity — evaluated and rejected, don't re-add without re-checking ADR-0014
 
-`google-antigravity` (0.1.12, Alpha) is not a core dependency. It's scoped to one optional stretch feature (an `auto_remediation` sub-agent in Engineering/SRE). If a feature doesn't already depend on it, don't add the dependency. The `agy` CLI is an optional developer tool for the team, not a product dependency.
+`google-antigravity` (SDK) and `agy` (CLI) are not dependencies of this project. Both were evaluated empirically (installed, inspected with `inspect` against real installed source, run against live Vertex AI turns — not assumed from docs) and rejected: the SDK has no pluggable persistence that survives a fresh process (incompatible with ephemeral, scale-to-zero, multi-instance Cloud Run), and the CLI's practical headless auth path is a raw Gemini API key, conflicting with this project's Vertex-AI-only eligibility requirement below. See ADR-0014 for the full findings. Department "harness feel" instead comes from curated skill excerpts in prompt files (see `/THIRD_PARTY_SKILLS.md`) and the already-existing `FirestoreSessionService` cross-turn persistence — no new framework.
 
 ## Auth & multi-tenancy — defense in depth, two independent layers
 

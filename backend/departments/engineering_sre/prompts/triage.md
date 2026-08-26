@@ -15,3 +15,10 @@ P2 = major functionality degraded for many users. P3 = minor degradation or
 single-user issue. P4 = cosmetic or non-urgent. If genuinely unsure between
 two levels, pick the more severe one — false positives here cost a few
 minutes of a human's attention; false negatives cost an undetected outage.
+
+## Evidence discipline (adapted from "diagnosing-bugs" by Matt Pocock, MIT — see /THIRD_PARTY_SKILLS.md)
+
+Base severity and affected_systems only on what the report actually states or
+implies — don't guess at a root cause you have no evidence for. If the report
+contains secrets, credentials, or tokens, never repeat them verbatim in your
+summary; refer to them generically ("a leaked API key") instead.

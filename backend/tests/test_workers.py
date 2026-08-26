@@ -24,6 +24,22 @@ async def test_spawn_worker_runs_to_completion_and_records_result():
     assert worker_id.startswith("worker-")
 
 
+async def test_spawn_worker_folds_target_agent_hint_into_prompt_and_picks_tier():
+    with (
+        patch("app.services.workers.store.create_worker"),
+        patch("app.services.workers.store.update_worker"),
+        patch("app.services.workers.run_agent_turn", new=AsyncMock(return_value="handled it")) as mock_run,
+    ):
+        workers.spawn_worker("org-test", "slack-dm", "billing looks off", target_agent="finance_audit", model_tier="pro")
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+
+    agent_arg, _session, _org, _worker_id, prompt_arg = mock_run.call_args.args
+    assert agent_arg is workers._worker_agents["pro"]
+    assert prompt_arg.startswith("(Likely belongs to: finance_audit)")
+    assert "billing looks off" in prompt_arg
+
+
 async def test_spawn_worker_records_failure_on_exception():
     with (
         patch("app.services.workers.store.create_worker"),

@@ -72,6 +72,10 @@ def update_agent_status(
     org_doc(org_id, "agents", agent_id).update(update)
 
 
+def set_agent_paused(org_id: str, agent_id: str, paused: bool) -> None:
+    org_doc(org_id, "agents", agent_id).update({"paused": paused, "updatedAt": _now()})
+
+
 def append_trace(org_id: str, agent_id: str, line: str, kind: str = "tool") -> None:
     org_doc(org_id, "agents", agent_id).collection("trace").add(
         {"ts": _now(), "line": line, "kind": kind}
