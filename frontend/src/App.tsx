@@ -138,6 +138,7 @@ function App() {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(loadSidebarWidth)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [focusMode, setFocusMode] = useState(false)
 
   useEffect(() => watchAuthState(setUser), [])
   useEffect(() => (user ? watchAgents(ORG_ID, setAgents) : undefined), [user])
@@ -182,17 +183,28 @@ function App() {
 
   return (
     <div style={{ height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <TitleBar orgId={ORG_ID} user={user} onOpenSettings={() => setSettingsOpen(true)} onSignOut={() => signOutUser()} />
+      <TitleBar
+        orgId={ORG_ID}
+        user={user}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onSignOut={() => signOutUser()}
+        focusMode={focusMode}
+        onToggleFocusMode={() => setFocusMode((f) => !f)}
+      />
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', padding: 'var(--corp-space-4)' }}>
-          <main style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-            <OfficeFloor agents={agents} />
-          </main>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', padding: 'var(--corp-space-4)', overflow: 'hidden' }}>
+          {!focusMode && (
+            <>
+              <main style={{ flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden' }}>
+                <OfficeFloor agents={agents} />
+              </main>
 
-          <SidebarSplitter width={sidebarWidth} onChange={updateSidebarWidth} viewportWidth={window.innerWidth} />
+              <SidebarSplitter width={sidebarWidth} onChange={updateSidebarWidth} viewportWidth={window.innerWidth} />
+            </>
+          )}
 
-          <div className="corp-panel" style={{ width: sidebarWidth, flexShrink: 0, minHeight: 0, overflow: 'hidden' }}>
+          <div className="corp-panel" style={{ width: focusMode ? '100%' : sidebarWidth, flexShrink: 0, minHeight: 0, overflow: 'hidden' }}>
             {rightPanelShowsDetail ? (
               <AgentDetailView orgId={ORG_ID} agent={selectedAgent!} />
             ) : (

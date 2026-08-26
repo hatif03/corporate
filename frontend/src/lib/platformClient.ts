@@ -325,6 +325,24 @@ export function toggleIntegration(orgId: string, integrationId: string, enabled:
   return post(`/api/org/${orgId}/integrations/${integrationId}/toggle?enabled=${enabled}`, {})
 }
 
+export interface IntegrationTemplate {
+  default_base_url: string
+  auth_type: string
+  secret_label: string
+  docs_url: string
+}
+
+export function getIntegrationCatalog(orgId: string): Promise<Record<string, IntegrationTemplate>> {
+  return get(`/api/org/${orgId}/integrations/catalog`) as Promise<Record<string, IntegrationTemplate>>
+}
+
+export function createIntegration(
+  orgId: string,
+  input: { kind: string; base_url?: string | null; auth_header?: string | null; secret_value?: string | null; connected_departments?: string[] },
+): Promise<IntegrationConfig> {
+  return post(`/api/org/${orgId}/integrations`, input) as Promise<IntegrationConfig>
+}
+
 // ---- access requests ----
 
 export interface AccessRequestEntry {

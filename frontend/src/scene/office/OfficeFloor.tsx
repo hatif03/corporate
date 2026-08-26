@@ -226,54 +226,74 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
       if (destroyed) return
 
       // One continuous floor underneath every zone — open plan, no walls.
+      // A large tileScale is the whole trick here: the source tile is a
+      // native 16px texture, and tiling it at 1:1 across a ~1400px-wide
+      // world repeats it ~90 times per row — that dense visible grid *is*
+      // the "cluttered" look. Scaling the tile up reads as a calm textured
+      // surface instead of a busy checkerboard, at the same real art.
       const baseFloor = new TilingSprite({ texture: texturesRef.current.get(FLOOR_TILE), width: WORLD_WIDTH, height: WORLD_HEIGHT })
+      baseFloor.tileScale.set(4)
+      baseFloor.tint = 0xfaf3e2
       world.addChild(baseFloor)
 
       for (const zone of DEPARTMENT_ZONES) {
-        // A soft tint patch (no border) is the only thing marking one zone
-        // off from the next — the open-plan floor itself is continuous.
-        const tint = new Graphics().rect(zone.x, zone.y, zone.width, zone.height).fill({ color: zone.color, alpha: 0.16 })
+        // A soft tint fill + a single thin outline is the only thing
+        // marking one zone off from the next — no walls, no heavy border.
+        const tint = new Graphics()
+          .roundRect(zone.x, zone.y, zone.width, zone.height, 14)
+          .fill({ color: zone.color, alpha: 0.14 })
+          .stroke({ width: 1.5, color: zone.color, alpha: 0.55 })
         world.addChild(tint)
 
+        // A small label chip (rounded pill) instead of bare text floating
+        // on the floor — reads clearly regardless of the zone tint under it.
         const label = new Text({
           text: zone.displayName,
-          style: { fontSize: 14, fill: 0x1c1c1c, fontWeight: 'bold' },
+          style: { fontFamily: 'Inter, sans-serif', fontSize: 15, fill: 0x1a1320, fontWeight: '700' },
         })
-        label.position.set(zone.x + 10, zone.y + 8)
+        label.position.set(14, 9)
+        const labelChip = new Graphics()
+          .roundRect(0, 0, label.width + 20, label.height + 14, 8)
+          .fill({ color: 0xfffdf5, alpha: 0.85 })
+        labelChip.position.set(zone.x + 12, zone.y + 10)
+        label.position.set(zone.x + 22, zone.y + 17)
+        world.addChild(labelChip)
         world.addChild(label)
+
+        const FURNITURE_SCALE = 1.9
 
         if (zone.kind === 'department') {
           const desk = new Sprite(texturesRef.current.get(DESK_TILE))
           desk.anchor.set(0.5)
-          desk.scale.set(1.6)
+          desk.scale.set(FURNITURE_SCALE)
           const deskAnchor = deskAnchorFor(zone as DepartmentZone)
           desk.position.set(deskAnchor.x, deskAnchor.y + 10)
           world.addChild(desk)
 
           const cabinet = new Sprite(texturesRef.current.get(CABINET_TILE))
           cabinet.anchor.set(0.5)
-          cabinet.scale.set(1.3)
+          cabinet.scale.set(FURNITURE_SCALE * 0.85)
           const cabinetAnchor = cabinetAnchorFor(zone as DepartmentZone)
           cabinet.position.set(cabinetAnchor.x, cabinetAnchor.y)
           world.addChild(cabinet)
 
           const bookshelf = new Sprite(texturesRef.current.get(BOOKSHELF_TILE))
           bookshelf.anchor.set(0.5)
-          bookshelf.scale.set(1.3)
+          bookshelf.scale.set(FURNITURE_SCALE * 0.85)
           const bookshelfAnchor = bookshelfAnchorFor(zone as DepartmentZone)
           bookshelf.position.set(bookshelfAnchor.x, bookshelfAnchor.y)
           world.addChild(bookshelf)
 
           const trash = new Sprite(texturesRef.current.get(TRASH_TILE))
           trash.anchor.set(0.5)
-          trash.scale.set(1.1)
+          trash.scale.set(FURNITURE_SCALE * 0.7)
           const trashAnchor = trashAnchorFor(zone as DepartmentZone)
           trash.position.set(trashAnchor.x, trashAnchor.y)
           world.addChild(trash)
 
           const art = new Sprite(texturesRef.current.get(ART_TILE))
           art.anchor.set(0.5)
-          art.scale.set(1.1)
+          art.scale.set(FURNITURE_SCALE * 0.7)
           const artAnchor = artAnchorFor(zone as DepartmentZone)
           art.position.set(artAnchor.x, artAnchor.y)
           world.addChild(art)
@@ -283,39 +303,39 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
           for (let i = 0; i < 3; i++) {
             const table = new Sprite(texturesRef.current.get(DESK_TILE))
             table.anchor.set(0.5)
-            table.scale.set(1.6)
-            table.position.set(zone.x + zone.width * (0.22 + i * 0.28), zone.y + zone.height * 0.55)
+            table.scale.set(FURNITURE_SCALE)
+            table.position.set(zone.x + zone.width * (0.2 + i * 0.3), zone.y + zone.height * 0.55)
             world.addChild(table)
           }
           const art = new Sprite(texturesRef.current.get(ART_TILE))
           art.anchor.set(0.5)
-          art.scale.set(1.1)
-          art.position.set(zone.x + zone.width * 0.5, zone.y + zone.height * 0.15)
+          art.scale.set(FURNITURE_SCALE * 0.7)
+          art.position.set(zone.x + zone.width * 0.5, zone.y + zone.height * 0.18)
           world.addChild(art)
         } else {
           // Break room: cabinet + bookshelf + trash + plant, no desk.
           const cabinet = new Sprite(texturesRef.current.get(CABINET_TILE))
           cabinet.anchor.set(0.5)
-          cabinet.scale.set(1.3)
+          cabinet.scale.set(FURNITURE_SCALE * 0.85)
           cabinet.position.set(zone.x + zone.width * 0.25, zone.y + zone.height * 0.5)
           world.addChild(cabinet)
 
           const bookshelf = new Sprite(texturesRef.current.get(BOOKSHELF_TILE))
           bookshelf.anchor.set(0.5)
-          bookshelf.scale.set(1.3)
-          bookshelf.position.set(zone.x + zone.width * 0.75, zone.y + zone.height * 0.3)
+          bookshelf.scale.set(FURNITURE_SCALE * 0.85)
+          bookshelf.position.set(zone.x + zone.width * 0.75, zone.y + zone.height * 0.32)
           world.addChild(bookshelf)
 
           const trash = new Sprite(texturesRef.current.get(TRASH_TILE))
           trash.anchor.set(0.5)
-          trash.scale.set(1.1)
-          trash.position.set(zone.x + zone.width * 0.5, zone.y + zone.height * 0.75)
+          trash.scale.set(FURNITURE_SCALE * 0.7)
+          trash.position.set(zone.x + zone.width * 0.5, zone.y + zone.height * 0.78)
           world.addChild(trash)
         }
 
         const plant = new Sprite(texturesRef.current.get(PLANT_TILE))
         plant.anchor.set(0.5, 0.85) // base of the plant, so sway rotation pivots at the pot
-        plant.scale.set(1.3)
+        plant.scale.set(FURNITURE_SCALE * 0.85)
         const plantAnchor = plantAnchorFor(zone as DepartmentZone)
         plant.position.set(plantAnchor.x, plantAnchor.y)
         world.addChild(plant)

@@ -38,7 +38,21 @@ const iconButtonStyle = {
   color: 'var(--corp-ink-900)',
 } as const
 
-export function TitleBar({ orgId, user, onOpenSettings, onSignOut }: { orgId: string; user: User; onOpenSettings: () => void; onSignOut: () => void }) {
+export function TitleBar({
+  orgId,
+  user,
+  onOpenSettings,
+  onSignOut,
+  focusMode,
+  onToggleFocusMode,
+}: {
+  orgId: string
+  user: User
+  onOpenSettings: () => void
+  onSignOut: () => void
+  focusMode: boolean
+  onToggleFocusMode: () => void
+}) {
   const theme = useAppTheme()
 
   return (
@@ -66,6 +80,14 @@ export function TitleBar({ orgId, user, onOpenSettings, onSignOut }: { orgId: st
         </button>
         <button className="corp-tip" data-tip="Settings" style={iconButtonStyle} onClick={onOpenSettings}>
           <Icon name="gear" />
+        </button>
+        <button
+          className="corp-tip"
+          data-tip={focusMode ? 'Show the office floor' : 'Hide the office floor — full-width panel'}
+          style={iconButtonStyle}
+          onClick={onToggleFocusMode}
+        >
+          <Icon name={focusMode ? 'minimize' : 'expand'} />
         </button>
         <UserAvatar user={user} />
         <span className="corp-text-muted" style={{ fontSize: 'var(--corp-text-body-sm)' }}>
