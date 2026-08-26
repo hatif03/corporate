@@ -17,11 +17,11 @@ function AgentMessages({ orgId, agent }: { orgId: string; agent: Agent }) {
     <div className="corp-panel">
       {relevant.length === 0 && <p>No messages for this agent yet.</p>}
       {relevant.map((m) => (
-        <div key={m.id} style={{ borderBottom: '1px solid #ddd', padding: '6px 0', fontSize: '0.9rem' }}>
+        <div key={m.id} className="corp-divider-row" style={{ fontSize: '0.9rem' }}>
           <strong>{m.from} → {m.to}</strong>{' '}
-          <span className="corp-badge" style={{ background: 'var(--corp-accent-sky)' }}>{m.act}</span>
+          <span className="corp-badge" style={{ background: 'var(--corp-sky-light)' }}>{m.act}</span>
           <div>{m.subject}</div>
-          <div style={{ color: '#888', fontSize: '0.8rem' }}>{m.createdAt}</div>
+          <div className="corp-text-muted" style={{ fontSize: '0.8rem' }}>{m.createdAt}</div>
         </div>
       ))}
     </div>
@@ -48,7 +48,7 @@ export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent 
         <h3 style={{ margin: 0 }}>
           {agent.name} {agent.isCeo && <span title="CEO">👑</span>}
         </h3>
-        <span style={{ color: '#666' }}>{agent.department}</span>
+        <span className="corp-text-muted">{agent.department}</span>
         <StatusBadge status={agent.status} />
         <button className="corp-button" style={{ marginLeft: 'auto' }} onClick={togglePause} disabled={busy}>
           {busy ? 'Working…' : agent.paused ? 'Resume' : 'Pause'}
@@ -57,15 +57,13 @@ export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent 
 
       <div style={{ display: 'flex', gap: 8 }}>
         <button
-          className="corp-button"
-          style={{ background: tab === 'terminal' ? 'var(--corp-accent-sky)' : undefined }}
+          className={`corp-button${tab === 'terminal' ? ' corp-button--active' : ''}`}
           onClick={() => setTab('terminal')}
         >
           Terminal
         </button>
         <button
-          className="corp-button"
-          style={{ background: tab === 'messages' ? 'var(--corp-accent-sky)' : undefined }}
+          className={`corp-button${tab === 'messages' ? ' corp-button--active' : ''}`}
           onClick={() => setTab('messages')}
         >
           Messages

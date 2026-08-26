@@ -42,7 +42,9 @@ function AskMeTabLabel({ pendingCount }: { pendingCount: number }) {
 function SignInGate() {
   return (
     <div style={{ padding: 48, textAlign: 'center' }}>
-      <h1>Corporate</h1>
+      <h1 style={{ fontFamily: 'var(--corp-font-display)', fontSize: 'var(--corp-text-display-lg)', lineHeight: 'var(--corp-lh-display-lg)', letterSpacing: '0.04em' }}>
+        Corporate
+      </h1>
       <p>Sign in to access your company's floor.</p>
       <button className="corp-button" onClick={() => signInWithGoogle()}>
         Sign in with Google
@@ -90,14 +92,16 @@ function App() {
   ]
 
   return (
-    <div style={{ display: 'flex', gap: 16, padding: 24, maxWidth: 1400, margin: '0 auto' }}>
+    <div style={{ display: 'flex', gap: 'var(--corp-space-4)', padding: 'var(--corp-space-5)', maxWidth: 1400, margin: '0 auto' }}>
       <Sidebar agents={agents} selectedAgentId={selectedAgentId} onSelect={handleSelectAgent} />
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <header style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginBottom: 16 }}>
-          <h1 style={{ margin: 0 }}>Corporate</h1>
-          <span style={{ color: '#666' }}>org: {ORG_ID}</span>
-          <span style={{ color: '#666', marginLeft: 'auto' }}>{user.email}</span>
+        <header style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--corp-space-4)', marginBottom: 'var(--corp-space-4)' }}>
+          <h1 style={{ margin: 0, fontFamily: 'var(--corp-font-display)', fontSize: 'var(--corp-text-display-md)', lineHeight: 'var(--corp-lh-display-md)' }}>
+            Corporate
+          </h1>
+          <span className="corp-text-muted">org: {ORG_ID}</span>
+          <span className="corp-text-muted" style={{ marginLeft: 'auto' }}>{user.email}</span>
           <button className="corp-button" onClick={() => signOutUser()}>
             Sign out
           </button>
@@ -105,12 +109,11 @@ function App() {
 
         {selectedAgent ? <AgentDetailView orgId={ORG_ID} agent={selectedAgent} /> : <OfficeFloor agents={agents} />}
 
-        <nav style={{ display: 'flex', gap: 8, margin: '16px 0', flexWrap: 'wrap' }}>
+        <nav style={{ display: 'flex', gap: 'var(--corp-space-2)', margin: 'var(--corp-space-4) 0', flexWrap: 'wrap' }}>
           {tabs.map((t) => (
             <button
               key={t.id}
-              className="corp-button"
-              style={{ background: tab === t.id ? 'var(--corp-accent-sky)' : undefined }}
+              className={`corp-button${tab === t.id ? ' corp-button--active' : ''}`}
               onClick={() => setTab(t.id)}
             >
               {t.label}

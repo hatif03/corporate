@@ -22,7 +22,7 @@ export function SettingsView({ orgId }: { orgId: string }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="corp-panel">
         <h3 style={{ marginTop: 0 }}>Gemini daily call budget</h3>
-        <p style={{ fontSize: '0.85rem', color: '#555' }}>
+        <p className="corp-text-muted" style={{ fontSize: '0.85rem' }}>
           Leave blank for no org-specific cap (the platform falls back to its own high emergency-brake
           ceiling — plenty for normal use, just enough to stop a genuine runaway loop). Set a low number here
           (e.g. 2) to test that the circuit breaker actually trips.

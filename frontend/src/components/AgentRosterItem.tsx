@@ -12,7 +12,7 @@ export function AgentRosterItem({
 }) {
   return (
     <button
-      className="corp-button"
+      className={`corp-button corp-roster-item${selected ? ' corp-roster-item--selected' : ''}`}
       onClick={() => onSelect(agent.id)}
       style={{
         display: 'flex',
@@ -20,7 +20,6 @@ export function AgentRosterItem({
         gap: 6,
         width: '100%',
         marginBottom: 4,
-        background: selected ? 'var(--corp-accent-sky)' : undefined,
       }}
     >
       <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

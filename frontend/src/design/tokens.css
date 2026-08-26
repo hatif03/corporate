@@ -1,64 +1,70 @@
+/* Design tokens only — custom properties, no resets/base styles/utility
+ * classes (those live in global.css, which @imports this file).
+ * Adapted from an MIT-licensed reference design system — see
+ * /THIRD_PARTY_SKILLS.md for attribution. */
+
 :root {
-  --corp-bg: #f4f1ea;
-  --corp-panel: #ffffff;
-  --corp-border: #2b2b2b;
-  --corp-text: #1c1c1c;
-  --corp-accent-sky: #6c8ef5;
-  --corp-accent-mint: #6bcf7f;
-  --corp-accent-coral: #ff6b6b;
-  --corp-accent-lemon: #ffd93d;
-  --corp-accent-lilac: #9b7ede;
-  --corp-accent-peach: #ff9f43;
+  /* Fonts */
+  --corp-font-display: 'Press Start 2P', monospace;
+  --corp-font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --corp-font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
-  --status-idle: #a899b5;
-  --status-thinking: #4ecdc4;
-  --status-working: #ffd93d;
-  --status-waiting: #6c8ef5;
-  --status-blocked: #ff6b6b;
-  --status-success: #6bcf7f;
-  --status-ghost: #d9cfe0;
+  /* Type scale */
+  --corp-text-display-lg: 16px; --corp-lh-display-lg: 24px;
+  --corp-text-display-md: 12px; --corp-lh-display-md: 20px;
+  --corp-text-display-sm: 8px;  --corp-lh-display-sm: 12px;
+  --corp-text-body-lg: 16px;    --corp-lh-body-lg: 24px;
+  --corp-text-body-md: 14px;    --corp-lh-body-md: 20px;
+  --corp-text-body-sm: 13px;    --corp-lh-body-sm: 18px;
+  --corp-text-mono-md: 14px;    --corp-lh-mono: 20px;
+  --corp-text-mono-sm: 13px;
 
+  /* Color: neutrals */
+  --corp-cream-50: #fffdf5;  --corp-cream-100: #fff8e7;
+  --corp-cream-200: #f4e9c7; --corp-cream-300: #e8d9a0;
+  --corp-paper-100: #fcfaf0; --corp-paper-200: #f0ead2;
+  --corp-ink-900: #1a1320; --corp-ink-700: #3d2e4a; --corp-ink-500: #6b5878;
+  --corp-ink-300: #a899b5; --corp-ink-100: #d9cfe0;
+
+  /* Color: accents (+ light fill variants) */
+  --corp-coral: #d96a62; --corp-coral-light: #f3d3cd;
+  --corp-mint:  #5ca97a; --corp-mint-light:  #d2e7da;
+  --corp-sky:   #4f9faf; --corp-sky-light:   #cfe5e9;
+  --corp-lemon: #dcab3c; --corp-lemon-light: #f3e4bc;
+  --corp-lilac: #9482d3; --corp-lilac-light: #e0daf2;
+  --corp-peach: #d99168; --corp-peach-light: #f3daca;
+  --corp-on-accent: #1a1320;
+
+  /* Status colors — 1:1 with AgentStatus in lib/types.ts */
+  --status-idle: #a199ab; --status-thinking: #4f9faf; --status-working: #dcab3c;
+  --status-waiting: #6d87d6; --status-blocked: #d96a62; --status-success: #5ca97a;
+  --status-ghost: #d9d3de; --status-compacting: #8f7cc7; --status-looping: #d6903f;
+  --status-typing: #c89838;
+
+  /* Spacing */
+  --corp-space-0: 0px;  --corp-space-1: 4px;  --corp-space-2: 8px;  --corp-space-3: 12px;
+  --corp-space-4: 16px; --corp-space-5: 24px; --corp-space-6: 32px; --corp-space-7: 48px;
+  --corp-space-8: 64px;
+
+  /* Shadow / border — hard offset shadows (no blur), borders via inset
+   * box-shadow (not `border`) so state changes never shift layout. No
+   * border-radius token anywhere — deliberately square-cornered. */
+  --corp-shadow-hard: 3px 3px 0 rgba(26, 19, 32, 0.14);
+  --corp-border-panel: inset 0 0 0 1px var(--corp-ink-300);
+  --corp-border-panel-inset: inset 0 0 0 1px var(--corp-ink-100);
+  --corp-border-terminal: inset 0 0 0 1px var(--corp-ink-300);
+  --corp-border-dialog: inset 0 0 0 1px var(--corp-ink-500);
+
+  /* Legacy aliases — drop once a grep for these + `--corp-accent-*` across
+   * frontend/src returns zero hits outside scene/office/*. */
+  --corp-bg: var(--corp-cream-100);
+  --corp-panel: var(--corp-paper-100);
+  --corp-border: var(--corp-ink-900);
+  --corp-text: var(--corp-ink-900);
   --corp-sidebar-width: 220px;
-}
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: var(--corp-bg);
-  color: var(--corp-text);
-  font-family: 'Segoe UI', system-ui, sans-serif;
-}
-
-.corp-panel {
-  background: var(--corp-panel);
-  border: 2px solid var(--corp-border);
-  box-shadow: 3px 3px 0 var(--corp-border);
-  padding: 12px;
-}
-
-.corp-button {
-  background: var(--corp-panel);
-  border: 2px solid var(--corp-border);
-  box-shadow: 2px 2px 0 var(--corp-border);
-  padding: 6px 12px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.corp-button:active {
-  box-shadow: none;
-  transform: translate(2px, 2px);
-}
-
-.corp-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 3px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: #1c1c1c;
+  /* dark theme: add a :root[data-theme='dark'] override block here if a
+   * theme toggle is ever built — every component already reads these
+   * custom properties, so it'd be a pure-CSS addition. Not built now,
+   * nothing needs it yet. */
 }

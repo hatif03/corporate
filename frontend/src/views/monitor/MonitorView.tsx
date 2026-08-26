@@ -55,9 +55,9 @@ export function MonitorView({ orgId, agents }: { orgId: string; agents: Agent[] 
             onChange={(e) => setImage(e.target.files?.[0] ?? null)}
             style={{ fontSize: '0.85rem' }}
           />
-          {image && <span style={{ fontSize: '0.85rem', color: '#555' }}>{image.name}</span>}
+          {image && <span className="corp-text-muted" style={{ fontSize: '0.85rem' }}>{image.name}</span>}
         </div>
-        {error && <p style={{ color: 'var(--corp-accent-coral)' }}>{error}</p>}
+        {error && <p style={{ color: 'var(--corp-coral)' }}>{error}</p>}
       </div>
 
       <div className="corp-panel">

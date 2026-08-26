@@ -140,8 +140,18 @@ function EndpointBlock({ endpoint }: { endpoint: Endpoint }) {
 
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: '0.85rem', color: '#555', marginBottom: 4 }}>{endpoint.purpose}</div>
-      <pre style={{ background: '#f4f1ea', border: '1px solid #ddd', padding: 8, overflowX: 'auto', margin: 0 }}>
+      <div className="corp-text-muted" style={{ fontSize: '0.85rem', marginBottom: 4 }}>{endpoint.purpose}</div>
+      <pre
+        style={{
+          background: 'var(--corp-paper-200)',
+          boxShadow: 'var(--corp-border-panel-inset)',
+          fontFamily: 'var(--corp-font-mono)',
+          fontSize: 'var(--corp-text-mono-sm)',
+          padding: 8,
+          overflowX: 'auto',
+          margin: 0,
+        }}
+      >
         {snippet}
       </pre>
       <button className="corp-button" style={{ marginTop: 4 }} onClick={copy}>

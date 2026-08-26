@@ -65,14 +65,14 @@ export function TriggersView({ orgId }: { orgId: string }) {
         <h3 style={{ marginTop: 0 }}>Triggers</h3>
         {triggers.length === 0 && <p>No triggers configured.</p>}
         {triggers.map((t) => (
-          <div key={t.id} style={{ borderBottom: '1px solid #ddd', padding: '8px 0' }}>
-            <strong>{t.name}</strong> <span className="corp-badge" style={{ background: 'var(--corp-accent-sky)' }}>{t.type}</span>
-            <div style={{ fontSize: '0.85rem', color: '#555' }}>
+          <div key={t.id} className="corp-divider-row">
+            <strong>{t.name}</strong> <span className="corp-badge" style={{ background: 'var(--corp-sky-light)' }}>{t.type}</span>
+            <div className="corp-text-muted" style={{ fontSize: '0.85rem' }}>
               → {t.targetAgent} {t.cron && `· ${t.cron}`}
               {t.lastFiredAt && ` · last fired ${new Date(t.lastFiredAt).toLocaleString()}`}
             </div>
             {t.type === 'webhook' && t.webhookSecret && (
-              <div style={{ fontSize: '0.75rem', color: '#888' }}>secret: {t.webhookSecret}</div>
+              <div className="corp-text-muted" style={{ fontSize: '0.75rem' }}>secret: {t.webhookSecret}</div>
             )}
             <div style={{ marginTop: 4, display: 'flex', gap: 8 }}>
               <button className="corp-button" onClick={() => toggleTrigger(orgId, t.id, !t.enabled)}>

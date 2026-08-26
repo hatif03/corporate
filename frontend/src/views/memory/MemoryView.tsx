@@ -47,9 +47,9 @@ export function MemoryView({ orgId, agents }: { orgId: string; agents: Agent[] }
           <div style={{ marginTop: 8 }}>
             {hits.length === 0 && <p>No results.</p>}
             {hits.map((h) => (
-              <div key={h.memoryId} style={{ borderBottom: '1px solid #ddd', padding: '6px 0' }}>
+              <div key={h.memoryId} className="corp-divider-row">
                 <strong>{h.agentId}</strong>{' '}
-                <span style={{ color: '#888', fontSize: '0.8rem' }}>score {h.score.toFixed(2)}</span>
+                <span className="corp-text-muted" style={{ fontSize: '0.8rem' }}>score {h.score.toFixed(2)}</span>
                 <div style={{ fontSize: '0.9rem' }}>{h.text}</div>
               </div>
             ))}
@@ -69,7 +69,7 @@ export function MemoryView({ orgId, agents }: { orgId: string; agents: Agent[] }
         <div style={{ marginTop: 8 }}>
           {entries.length === 0 && <p>No memory entries yet.</p>}
           {entries.map((e) => (
-            <div key={e.id} style={{ borderBottom: '1px solid #ddd', padding: '6px 0', fontSize: '0.9rem' }}>
+            <div key={e.id} className="corp-divider-row" style={{ fontSize: '0.9rem' }}>
               {e.text}
             </div>
           ))}

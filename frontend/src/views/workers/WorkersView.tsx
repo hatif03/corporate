@@ -89,15 +89,15 @@ export function WorkersView({ orgId, agents }: { orgId: string; agents: Agent[] 
         <h3 style={{ marginTop: 0 }}>Workers</h3>
         {workers.length === 0 && <p>No workers running right now.</p>}
         {workers.map((w) => (
-          <div key={w.id} style={{ borderBottom: '1px solid #ddd', padding: '8px 0' }}>
+          <div key={w.id} className="corp-divider-row">
             <strong>{w.id}</strong>{' '}
             <span className="corp-badge" style={{ background: STATUS_COLOR[w.status] }}>
               {w.status}
             </span>
-            <div style={{ fontSize: '0.85rem', color: '#555' }}>from: {w.sourceEvent}</div>
+            <div className="corp-text-muted" style={{ fontSize: '0.85rem' }}>from: {w.sourceEvent}</div>
             {w.result?.reply != null && <div style={{ fontSize: '0.85rem' }}>{String(w.result.reply)}</div>}
             {w.result?.error != null && (
-              <div style={{ fontSize: '0.85rem', color: 'var(--corp-accent-coral)' }}>{String(w.result.error)}</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--corp-coral)' }}>{String(w.result.error)}</div>
             )}
             {w.status === 'running' && (
               <button className="corp-button" style={{ marginTop: 4 }} onClick={() => stopWorker(orgId, w.id)}>

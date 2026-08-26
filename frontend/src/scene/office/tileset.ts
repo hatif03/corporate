@@ -1,15 +1,33 @@
 // Real art for the office floor — Kenney's CC0 RPG Urban Pack
 // (frontend/src/assets/kenney/rpg_urban_pack_extracted/Tiles/, 16x16px
 // tiles, no name/index metadata shipped with the pack, so every index below
-// was picked by opening the individual tile PNGs and eyeballing them).
+// was picked by opening the individual tile PNGs and eyeballing them —
+// rendered at 8x scale with an index grid overlaid, not guessed from the
+// packed tilemap thumbnail, which is too small to read reliably).
 //
 // Character rows: column 25 is a color variant's "idle" pose, columns 24/26
 // are companion poses of the SAME variant (confirmed across multiple rows)
 // — used as the two alternating "walk" frames. Row r's triple is
 // (27r+24, 27r+25, 27r+26).
+//
+// tile_0210 was previously (wrongly) used as "the desk" — it's actually a
+// brick-wall-with-baseboard texture tile, confirmed by rendering it in
+// isolation. tile_0300 (a wooden dresser/drawer unit) is the closest
+// desk-shaped furniture this pack actually has — this pack is an outdoor/
+// urban RPG set, not an office-interior set, so there's no literal
+// desk+monitor sprite available; a real office-furniture pack (Kenney's
+// Furniture Kit, also CC0) exists but renders in a soft-shaded/isometric
+// style that doesn't match this pack's flat hard-pixel look, so mixing them
+// would read as visually inconsistent rather than more "office-like" — see
+// ADR/plan notes. Decorative furniture below (cabinet/plant/trash/art) is
+// picked the same way, real furniture-shaped tiles, not textures.
 
 import floorTile from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0081.png'
-import deskTile from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0210.png'
+import deskTile from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0300.png'
+import cabinetTile from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0303.png'
+import plantTile from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0259.png'
+import trashTile from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0279.png'
+import artTile from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0391.png'
 
 import char0Idle from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0025.png'
 import char0WalkA from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_0024.png'
@@ -45,6 +63,10 @@ import char7WalkB from '../../assets/kenney/rpg_urban_pack_extracted/Tiles/tile_
 
 export const FLOOR_TILE = floorTile
 export const DESK_TILE = deskTile
+export const CABINET_TILE = cabinetTile
+export const PLANT_TILE = plantTile
+export const TRASH_TILE = trashTile
+export const ART_TILE = artTile
 
 export interface CharacterVariant {
   idle: string
