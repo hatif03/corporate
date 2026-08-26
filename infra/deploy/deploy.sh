@@ -16,6 +16,19 @@ A2A_SERVICE="corporate-a2a-sales"
 
 cd "$(dirname "$0")/../../backend"
 
+# scripts/seed.py needs this project's deps (google-cloud-pubsub etc.) —
+# plain `python` on PATH is whatever's globally installed on the dev
+# machine, not necessarily this venv, and fails with a bare ImportError deep
+# into the script (after both Cloud Run services already deployed) instead
+# of a clear "wrong interpreter" error. Prefer the venv explicitly.
+if [ -f ".venv/Scripts/python.exe" ]; then
+  PYTHON=".venv/Scripts/python.exe"
+elif [ -f ".venv/bin/python" ]; then
+  PYTHON=".venv/bin/python"
+else
+  PYTHON="python3"
+fi
+
 echo "== deploying ${BACKEND_SERVICE} (first pass, to learn its URL) =="
 # --allow-unauthenticated: /api/org/* must be publicly reachable so the
 # browser frontend's Firebase-token auth (require_org_member) ever runs at
@@ -89,7 +102,7 @@ gcloud iam service-accounts add-iam-policy-binding "${SA_EMAIL}" \
   --role="roles/iam.serviceAccountTokenCreator"
 
 echo "== seeding Firestore agents + Pub/Sub push subscriptions =="
-GOOGLE_CLOUD_PROJECT="${PROJECT_ID}" CORPORATE_BACKEND_URL="${BACKEND_URL}" python scripts/seed.py
+GOOGLE_CLOUD_PROJECT="${PROJECT_ID}" CORPORATE_BACKEND_URL="${BACKEND_URL}" "${PYTHON}" scripts/seed.py
 
 echo "== deploying Firestore security rules =="
 # Client reads go straight to Firestore (see frontend/src/lib/platformClient.ts's
