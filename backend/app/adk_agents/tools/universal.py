@@ -170,3 +170,57 @@ async def set_note(note: str, tool_context: ToolContext) -> dict:
     org_id, agent_id = _ids(tool_context)
     org_doc(org_id, "agents", agent_id).update({"note": note})
     return {"updated": True}
+
+
+async def spawn_subagent_tool(
+    prompt: str,
+    tool_context: ToolContext,
+    target_department: str | None = None,
+    model_tier: Literal["flash", "pro"] = "flash",
+) -> dict:
+    """Delegate a self-contained sub-task to a fresh, ephemeral sub-agent and
+    wait for its result — useful for a genuinely separable piece of work
+    (e.g. "research X" or "draft Y") you'd rather hand off than do inline.
+    Blocks until the sub-agent finishes or times out (2 minutes), and its
+    real output is returned to you directly.
+
+    A spawned sub-agent cannot itself spawn another sub-agent — this tool is
+    only ever given to the CEO and department agents, never to the
+    ephemeral worker agent this call runs, so nesting is structurally
+    impossible rather than merely counted and rejected.
+
+    Args:
+        prompt: the full, self-contained instructions for the sub-agent —
+            it has no visibility into your own conversation.
+        target_department: soft hint for which department this is really
+            about, if any — helps the sub-agent hand off correctly.
+        model_tier: "flash" (default) or "pro" for genuinely complex work.
+    """
+    from app.services.workers import spawn_worker_and_await  # local import: avoids factory<->universal import cycle
+
+    org_id, agent_id = _ids(tool_context)
+    return await spawn_worker_and_await(
+        org_id, source_event=f"subagent-of-{agent_id}", prompt=prompt, target_agent=target_department, model_tier=model_tier
+    )
+
+
+async def execute_python_tool(code: str, tool_context: ToolContext) -> dict:
+    """Run a Python snippet in an isolated, sandboxed subprocess — use this
+    instead of several separate tool calls when you need to combine, filter,
+    or loop over the results of more than one lookup (e.g. "list every task
+    and count them per status" is one execute_python call instead of one
+    list_tasks_tool call plus your own multi-turn counting). The snippet
+    runs with no access to your credentials or this conversation; call
+    `call_tool(name, **kwargs)` inside it to invoke a whitelisted read-only
+    tool (list_tasks_tool, list_agents_tool, search_memory_tool, read_memory
+    — same names and arguments as your own tools), and assign your final
+    answer to a variable named `result` (must be JSON-serializable). Plain
+    Python only — no imports, no file/network access, no classes.
+
+    Args:
+        code: the Python source to run. Must set a `result` variable.
+    """
+    from app.services.sandbox import run_sandboxed  # local import: avoids factory<->universal import cycle
+
+    org_id, agent_id = _ids(tool_context)
+    return await run_sandboxed(org_id, agent_id, code)

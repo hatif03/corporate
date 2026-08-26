@@ -10,6 +10,7 @@ from pathlib import Path
 
 from app.adk_agents.factory import build_tiered_stage_agents
 from app.adk_agents.runtime import run_agent_turn
+from app.adk_agents.tools.universal import spawn_subagent_tool
 from app.models import Task, TaskResult
 from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
@@ -29,8 +30,15 @@ def _load_prompt(name: str) -> str:
 
 
 def _build_stage_agents(name: str, prompt_file: str) -> dict:
+    # Opted into spawn_subagent_tool (unlike hr_people_ops/customer_support)
+    # — SRE triage routinely turns up genuinely separable sub-investigations
+    # worth delegating. See app/adk_agents/tools/universal.py's docstring
+    # for why this can't recurse.
     return build_tiered_stage_agents(
-        name, instruction=_load_prompt(prompt_file), description=f"Engineering & SRE pipeline stage: {name}"
+        name,
+        instruction=_load_prompt(prompt_file),
+        description=f"Engineering & SRE pipeline stage: {name}",
+        extra_tools=[spawn_subagent_tool],
     )
 
 

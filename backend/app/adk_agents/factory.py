@@ -11,12 +11,14 @@ from google.adk.tools.google_search_agent_tool import create_google_search_agent
 from app.adk_agents import callbacks
 from app.adk_agents.tools.universal import (
     create_task,
+    execute_python_tool,
     list_agents_tool,
     list_tasks_tool,
     read_memory,
     search_memory_tool,
     send_message,
     set_note,
+    spawn_subagent_tool,
     update_task_status,
     write_board,
     write_memory,
@@ -54,6 +56,7 @@ google_search_tool = GoogleSearchAgentTool(agent=_google_search_sub_agent)
 
 _CEO_TOOLS = [
     create_task, write_board, send_message, list_agents_tool, list_tasks_tool, update_task_status, google_search_tool,
+    spawn_subagent_tool, execute_python_tool,
 ]
 _DEPARTMENT_UNIVERSAL_TOOLS = [send_message, read_memory, write_memory, search_memory_tool, set_note, google_search_tool]
 

@@ -12,6 +12,7 @@ from pathlib import Path
 
 from app.adk_agents.factory import build_tiered_stage_agents
 from app.adk_agents.runtime import run_agent_turn
+from app.adk_agents.tools.universal import execute_python_tool, spawn_subagent_tool
 from app.models import Task, TaskResult, TaskStatus
 from app.services import store
 from app.services.session_service import FirestoreSessionService
@@ -31,6 +32,7 @@ metrics_agents = build_tiered_stage_agents(
     "analytics_metrics_analyst",
     instruction=_load_prompt("metrics_analyst"),
     description="Product & Data Analytics pipeline stage: metrics analyst",
+    extra_tools=[spawn_subagent_tool, execute_python_tool],
 )
 
 _session_service = FirestoreSessionService()

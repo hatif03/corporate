@@ -54,6 +54,35 @@ async def test_spawn_worker_records_failure_on_exception():
     assert WorkerStatus.FAILED in statuses
 
 
+async def test_spawn_worker_and_await_returns_result_directly():
+    with (
+        patch("app.services.workers.store.create_worker"),
+        patch("app.services.workers.store.update_worker"),
+        patch("app.services.workers.run_agent_turn", new=AsyncMock(return_value="sub-agent's real answer")),
+    ):
+        result = await workers.spawn_worker_and_await("org-test", "subagent-of-ceo", "research X")
+
+    assert result["reply"] == "sub-agent's real answer"
+    assert result["worker_id"].startswith("worker-")
+
+
+async def test_spawn_worker_and_await_times_out():
+    async def _never_finishes(*args, **kwargs):
+        await asyncio.sleep(10)
+        return "should not get here"
+
+    with (
+        patch("app.services.workers.store.create_worker"),
+        patch("app.services.workers.store.update_worker") as mock_update,
+        patch("app.services.workers.run_agent_turn", new=AsyncMock(side_effect=_never_finishes)),
+        patch("app.services.workers.SUBAGENT_TIMEOUT_SECONDS", 0.01),
+    ):
+        result = await workers.spawn_worker_and_await("org-test", "subagent-of-ceo", "slow research")
+
+    assert "timed out" in result["error"]
+    assert any(call.args[2] == WorkerStatus.FAILED for call in mock_update.call_args_list)
+
+
 async def test_stop_worker_cancels_running_task():
     async def _never_finishes(*args, **kwargs):
         await asyncio.sleep(10)

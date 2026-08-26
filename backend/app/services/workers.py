@@ -55,18 +55,52 @@ def stop_worker(org_id: str, worker_id: str) -> bool:
     return True
 
 
-async def _run_worker(org_id: str, worker_id: str, conversation: str, prompt: str, model_tier: str) -> None:
+async def _run_worker(org_id: str, worker_id: str, conversation: str, prompt: str, model_tier: str) -> dict:
     store.update_worker(org_id, worker_id, WorkerStatus.RUNNING)
     try:
         # Each worker gets its own session id so it doesn't share state with
         # any registered department agent — a real "spin up, do one thing,
         # tear down" identity.
         reply = await run_agent_turn(_worker_agents[model_tier], _session_service, org_id, worker_id, prompt)
-        store.update_worker(org_id, worker_id, WorkerStatus.DONE, result={"reply": reply})
+        result = {"reply": reply}
+        store.update_worker(org_id, worker_id, WorkerStatus.DONE, result=result)
     except Exception as exc:  # noqa: BLE001 - worker failures must not crash the caller
-        store.update_worker(org_id, worker_id, WorkerStatus.FAILED, result={"error": str(exc)})
+        result = {"error": str(exc)}
+        store.update_worker(org_id, worker_id, WorkerStatus.FAILED, result=result)
     finally:
         _running_tasks.pop(worker_id, None)
+    return result
+
+
+SUBAGENT_TIMEOUT_SECONDS = 120
+
+
+async def spawn_worker_and_await(
+    org_id: str, source_event: str, prompt: str, target_agent: str | None = None, model_tier: str = "flash"
+) -> dict:
+    """Synchronous sibling of spawn_worker: blocks until the ephemeral
+    worker finishes (or hits SUBAGENT_TIMEOUT_SECONDS) and returns its
+    result directly, so a delegating agent's spawn_subagent tool call gets
+    the sub-task's real output back within the same turn. Depth is
+    structural, not counted — see
+    app/adk_agents/tools/universal.py's spawn_subagent_tool docstring for
+    why a spawned worker can't itself spawn another one."""
+    worker_id = f"worker-{uuid.uuid4().hex[:10]}"
+    conversation = f"worker-conv-{uuid.uuid4().hex[:8]}"
+    store.create_worker(
+        org_id,
+        Worker(id=worker_id, source_event=source_event, agent_id=worker_id, conversation=conversation),
+    )
+    full_prompt = f"(Likely belongs to: {target_agent})\n{prompt}" if target_agent else prompt
+    try:
+        result = await asyncio.wait_for(
+            _run_worker(org_id, worker_id, conversation, full_prompt, model_tier), timeout=SUBAGENT_TIMEOUT_SECONDS
+        )
+    except asyncio.TimeoutError:
+        result = {"error": "sub-agent timed out"}
+        store.update_worker(org_id, worker_id, WorkerStatus.FAILED, result=result)
+        _running_tasks.pop(worker_id, None)
+    return {"worker_id": worker_id, **result}
 
 
 def spawn_worker(
