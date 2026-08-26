@@ -25,6 +25,7 @@ from app.models import Act, Task, TaskStatus
 from app.services import pubsub_client, store
 from app.services.embeddings import embed_text
 from app.services.firestore_client import org_doc
+from app.services.memory_search import search_memory as _search_memory
 
 
 def _ids(tool_context: ToolContext) -> tuple[str, str]:
@@ -142,6 +143,17 @@ async def read_memory(tool_context: ToolContext, limit: int = 10) -> str:
     if not entries:
         return ""
     return "\n".join(f"- {e['text']}" for e in reversed(entries))
+
+
+async def search_memory_tool(query: str, tool_context: ToolContext, top_k: int = 5) -> str:
+    """Semantically search your long-term memory for notes relevant to
+    `query` — use this instead of read_memory when you need something
+    specific rather than just your most recent notes."""
+    org_id, agent_id = _ids(tool_context)
+    hits = _search_memory(org_id, query, agent_id=agent_id, top_k=top_k)
+    if not hits:
+        return ""
+    return "\n".join(f"- ({h.score:.2f}) {h.text}" for h in hits)
 
 
 async def write_memory(text: str, tool_context: ToolContext) -> dict:

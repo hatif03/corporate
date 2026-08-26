@@ -6,12 +6,15 @@ InMemorySessionService would silently lose context. Sessions are persisted at
 orgs/{org_id}/agent_sessions/{agent_id} (session_id == agent_id, user_id ==
 org_id, app_name == "corporate" for every session in this project).
 
-ponytail: events are stored as a single array field on the session doc, not a
-subcollection like agents/{id}/trace. This is fine at hackathon-demo message
-volume but will hit Firestore's 1MiB document cap on a very long-running
-agent conversation — if that happens, move events to a
-agent_sessions/{agentId}/events/{seq} subcollection the same way trace already
-works, and update get_session()/append_event() to read/write it instead.
+Events are stored as a single array field on the session doc, not a
+subcollection like agents/{id}/trace. To keep that array from ever hitting
+Firestore's 1MiB document cap, _persist() runs it through
+app/services/compaction.py before every write — see that module's docstring
+(adapted from opencode's compaction pattern, MIT, docs/adr/0015). If
+compaction alone stops being enough at real scale, the next upgrade is
+moving events to an agent_sessions/{agentId}/events/{seq} subcollection the
+same way trace already works, and updating get_session()/append_event() to
+read/write it instead — noted here, not built now.
 """
 
 from __future__ import annotations
@@ -26,6 +29,7 @@ from google.adk.sessions.base_session_service import (
 )
 from google.adk.sessions.session import Session
 
+from app.services import compaction, store
 from app.services.firestore_client import org_collection, org_doc
 
 
@@ -55,7 +59,7 @@ class FirestoreSessionService(BaseSessionService):
             state=state or {},
             events=[],
         )
-        self._persist(org_id, session)
+        await self._persist(org_id, session)
         return session
 
     async def get_session(
@@ -107,10 +111,15 @@ class FirestoreSessionService(BaseSessionService):
 
     async def append_event(self, session: Session, event: Event) -> Event:
         event = await super().append_event(session, event)
-        self._persist(session.user_id, session)
+        await self._persist(session.user_id, session)
         return event
 
-    def _persist(self, org_id: str, session: Session) -> None:
+    async def _persist(self, org_id: str, session: Session) -> None:
+        if compaction.should_compact(session.events):
+            try:
+                session.events = await compaction.compact_events(org_id, session.events)
+            except Exception as exc:  # noqa: BLE001 - compaction must never break a real turn
+                store.log_activity(org_id, session.id, "compaction-failed", str(exc))
         org_doc(org_id, "agent_sessions", session.id).set(
             {
                 "state": session.state,

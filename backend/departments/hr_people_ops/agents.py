@@ -15,8 +15,9 @@ from app.models import Task, TaskResult
 from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
 from departments.hr_people_ops.handbook import HR_HANDBOOK
-from departments.hr_people_ops.schemas import RequestClassification
+from departments.hr_people_ops.schemas import HandbookAnswer, RequestClassification
 from shared.privacy_pipeline import redact
+from shared.verification import ground_quote
 
 DEPARTMENT_ID = "hr_people_ops"
 
@@ -60,14 +61,25 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
     classification = RequestClassification(**_extract_json(classification_text))
 
     qa_input = f"HANDBOOK:\n{HR_HANDBOOK}\n\nREQUEST ({classification.request_type}): {classification.summary}"
-    answer = await run_agent_turn(handbook_qa_agents[tier], _session_service, org_id, DEPARTMENT_ID, qa_input)
+    answer_text = await run_agent_turn(handbook_qa_agents[tier], _session_service, org_id, DEPARTMENT_ID, qa_input)
+    answer = HandbookAnswer(**_extract_json(answer_text))
 
-    needs_human = classification.request_type == "leave_request"
+    grounded = True
+    if answer.cited_quote:
+        grounded = ground_quote(answer.cited_quote, HR_HANDBOOK) is not None
+
+    needs_human = classification.request_type == "leave_request" or not grounded
 
     return TaskResult(
-        success=True,
-        summary=answer,
-        data={"request_type": classification.request_type},
+        success=grounded,
+        summary=answer.answer,
+        data={"request_type": classification.request_type, "grounded": grounded},
         needs_human=needs_human,
-        human_question=(f"Leave request needs HR approval: {classification.summary}" if needs_human else None),
+        human_question=(
+            "Answer cites something not actually in the handbook — needs a human rewrite."
+            if not grounded
+            else f"Leave request needs HR approval: {classification.summary}"
+            if needs_human
+            else None
+        ),
     )

@@ -14,6 +14,7 @@ from app.adk_agents.tools.universal import (
     list_agents_tool,
     list_tasks_tool,
     read_memory,
+    search_memory_tool,
     send_message,
     set_note,
     update_task_status,
@@ -54,7 +55,7 @@ google_search_tool = GoogleSearchAgentTool(agent=_google_search_sub_agent)
 _CEO_TOOLS = [
     create_task, write_board, send_message, list_agents_tool, list_tasks_tool, update_task_status, google_search_tool,
 ]
-_DEPARTMENT_UNIVERSAL_TOOLS = [send_message, read_memory, write_memory, set_note, google_search_tool]
+_DEPARTMENT_UNIVERSAL_TOOLS = [send_message, read_memory, write_memory, search_memory_tool, set_note, google_search_tool]
 
 _UNIVERSAL_CALLBACKS = {
     "before_agent_callback": callbacks.before_agent_callback,

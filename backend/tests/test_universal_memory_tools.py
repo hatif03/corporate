@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from app.adk_agents.tools.universal import read_memory, write_memory
+from app.adk_agents.tools.universal import read_memory, search_memory_tool, write_memory
 
 
 def _fake_tool_context(org_id="org-test", agent_id="finance_audit"):
@@ -38,3 +38,19 @@ async def test_read_memory_returns_empty_string_when_no_history():
         result = await read_memory(tool_context=_fake_tool_context())
 
     assert result == ""
+
+
+async def test_search_memory_tool_formats_hits_by_score():
+    from app.services.memory_search import MemoryHit
+
+    hits = [MemoryHit(agent_id="finance_audit", memory_id="m1", text="Q3 vendor risk flagged", score=0.91)]
+    with patch("app.adk_agents.tools.universal._search_memory", return_value=hits) as mock_search:
+        result = await search_memory_tool("vendor risk", tool_context=_fake_tool_context())
+
+    assert "0.91" in result and "Q3 vendor risk flagged" in result
+    mock_search.assert_called_once_with("org-test", "vendor risk", agent_id="finance_audit", top_k=5)
+
+
+async def test_search_memory_tool_returns_empty_string_on_no_hits():
+    with patch("app.adk_agents.tools.universal._search_memory", return_value=[]):
+        assert await search_memory_tool("x", tool_context=_fake_tool_context()) == ""

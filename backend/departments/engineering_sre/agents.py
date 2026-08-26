@@ -13,9 +13,11 @@ from app.adk_agents.runtime import run_agent_turn
 from app.models import Task, TaskResult
 from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
+from departments.engineering_sre.aspects import ASPECTS
 from departments.engineering_sre.schemas import CascadePrediction, TriageResult
-from departments.engineering_sre.tools import notify_slack_channel
+from departments.engineering_sre.tools import create_jira_ticket, notify_slack_channel
 from shared.privacy_pipeline import redact
+from shared.verification import vote_aspects
 
 DEPARTMENT_ID = "engineering_sre"
 
@@ -83,7 +85,10 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
         postmortem_agents[tier], _session_service, org_id, DEPARTMENT_ID, postmortem_input
     )
 
-    needs_human = triage.severity in HIGH_SEVERITY or cascade.cascade_risk == "high"
+    claim = {"triage": triage.model_dump(), "cascade": cascade.model_dump()}
+    verified = await vote_aspects(claim, ASPECTS)
+
+    needs_human = triage.severity in HIGH_SEVERITY or cascade.cascade_risk == "high" or not verified.verified
 
     if needs_human:
         await notify_slack_channel(
@@ -91,6 +96,8 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
             "#incidents",
             f"[{triage.severity}] {triage.summary} — cascade risk: {cascade.cascade_risk}",
         )
+    if cascade.cascade_risk == "high":
+        await create_jira_ticket(org_id, "SRE", f"[{triage.severity}] {triage.summary}", postmortem)
 
     return TaskResult(
         success=True,
@@ -99,6 +106,7 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
             "severity": triage.severity,
             "affected_systems": triage.affected_systems,
             "cascade_risk": cascade.cascade_risk,
+            "verified": verified.verified,
         },
         needs_human=needs_human,
         human_question=(

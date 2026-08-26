@@ -66,19 +66,56 @@ async def test_high_severity_incident_flags_human_review():
         patch("shared.audit_chain.append_entry"),
         patch("app.services.pubsub_client.publish_message"),
         patch("departments.engineering_sre.agents.notify_slack_channel", new=AsyncMock(return_value={"posted": True})) as mock_notify,
+        patch("departments.engineering_sre.agents.create_jira_ticket", new=AsyncMock(return_value={"filed": True})) as mock_jira,
     ):
         result = await on_task_received("org-test", task)
 
     assert result.needs_human is True
     assert result.data["severity"] == "P1"
     assert result.data["cascade_risk"] == "high"
+    assert result.data["verified"] is True
     assert mock_notify.called
     assert mock_notify.call_args.args[0] == "org-test"
+    assert mock_jira.called
 
     # The PII in the task description must never reach the first (triage) call.
     first_call_prompt = mock_turn.call_args_list[0].args[4]
     assert "security@example.com" not in first_call_prompt
     assert "555-000-1234" not in first_call_prompt
+
+
+async def test_internally_inconsistent_triage_cascade_is_flagged_unverified():
+    """A P1 across several affected systems but cascade risk marked 'low' is
+    internally suspicious — severity_cascade_consistency (aspects.py) should
+    catch it even though needs_human was already true for the severity
+    alone, so the human reviewer sees the data-quality flag, not just the
+    severity flag."""
+    task = Task(
+        id="task-4",
+        title="Auth outage",
+        description="auth-service is fully down.",
+        task_type="handle_incident",
+        status=TaskStatus.TODO,
+        assignee="engineering_sre",
+        created_by="ceo",
+    )
+    triage_json = json.dumps(
+        {"severity": "P1", "affected_systems": ["auth-service", "billing-api", "checkout"], "summary": "auth outage"}
+    )
+    cascade_json = json.dumps({"cascade_risk": "low", "reasoning": "contradicts the severity, deliberately"})
+    fake = await _fake_run_agent_turn_factory(triage_json, cascade_json)
+    with (
+        patch("departments.engineering_sre.agents.run_agent_turn", new=AsyncMock(side_effect=fake)),
+        patch("app.services.store.update_task"),
+        patch("app.services.store.log_activity"),
+        patch("shared.audit_chain.append_entry"),
+        patch("app.services.pubsub_client.publish_message"),
+        patch("departments.engineering_sre.agents.notify_slack_channel", new=AsyncMock(return_value={"posted": True})),
+    ):
+        result = await on_task_received("org-test", task)
+
+    assert result.needs_human is True
+    assert result.data["verified"] is False
 
 
 async def test_low_severity_incident_does_not_notify_slack():

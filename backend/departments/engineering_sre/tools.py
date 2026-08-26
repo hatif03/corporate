@@ -15,6 +15,7 @@ from __future__ import annotations
 from app.services.integration_broker import call_integration
 
 SLACK_INTEGRATION_ID = "slack"
+JIRA_INTEGRATION_ID = "jira"
 
 
 async def notify_slack_channel(org_id: str, channel: str, text: str) -> dict:
@@ -29,3 +30,29 @@ async def notify_slack_channel(org_id: str, channel: str, text: str) -> dict:
     except ValueError as exc:
         return {"posted": False, "reason": str(exc)}
     return {"posted": response.status_code == 200, "status_code": response.status_code}
+
+
+async def create_jira_ticket(org_id: str, project_key: str, summary: str, description: str) -> dict:
+    """File a Jira issue via the configured Jira integration, for
+    high-cascade-risk incidents. Same deterministic-call-site,
+    fail-soft-when-unconfigured shape as notify_slack_channel above — the
+    INTEGRATION_TEMPLATES catalog has declared a jira template since ADR-0013
+    but nothing in the codebase actually called it until now."""
+    try:
+        response = await call_integration(
+            org_id,
+            JIRA_INTEGRATION_ID,
+            "POST",
+            "/issue",
+            json={
+                "fields": {
+                    "project": {"key": project_key},
+                    "summary": summary,
+                    "issuetype": {"name": "Bug"},
+                    "description": description,
+                }
+            },
+        )
+    except ValueError as exc:
+        return {"filed": False, "reason": str(exc)}
+    return {"filed": response.status_code in (200, 201), "status_code": response.status_code}

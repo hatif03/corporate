@@ -22,6 +22,18 @@ def _default_unpaused_agent():
 
 
 @pytest.fixture(autouse=True)
+def _default_no_memory():
+    """run_agent_turn's gated memory auto-surface (docs/adr/0015) calls
+    store.list_memory as a cheap existence check before any real search —
+    real network call otherwise. Empty (no memory yet) is the safe default,
+    same effect as an agent that's never written a memory note. Tests that
+    actually exercise memory surfacing (tests/test_runtime_memory_surface.py)
+    override this locally."""
+    with patch("app.services.store.list_memory", return_value=[]):
+        yield
+
+
+@pytest.fixture(autouse=True)
 def _bypass_org_auth():
     """API tests exercise route logic, not the auth layer itself (that has
     its own dedicated tests/test_auth.py) — override the require_org_member

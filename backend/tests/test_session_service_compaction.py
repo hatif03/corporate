@@ -1,0 +1,63 @@
+"""Covers FirestoreSessionService._persist's compaction wiring — the
+compaction logic itself is tested in test_compaction.py; this only checks
+_persist calls it at the right time and never lets a compaction failure
+escape into a real turn."""
+
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from google.adk.sessions.session import Session
+
+from app.services.session_service import FirestoreSessionService
+
+
+def _session() -> Session:
+    return Session(app_name="corporate", user_id="org-test", id="finance_audit", state={}, events=[])
+
+
+async def test_persist_skips_compaction_when_under_threshold():
+    service = FirestoreSessionService()
+    mock_doc = MagicMock()
+    with (
+        patch("app.services.session_service.org_doc", return_value=mock_doc),
+        patch("app.services.session_service.compaction.should_compact", return_value=False),
+        patch("app.services.session_service.compaction.compact_events") as mock_compact,
+    ):
+        await service._persist("org-test", _session())
+
+    mock_compact.assert_not_called()
+    mock_doc.set.assert_called_once()
+
+
+async def test_persist_compacts_when_over_threshold():
+    service = FirestoreSessionService()
+    session = _session()
+    mock_doc = MagicMock()
+    with (
+        patch("app.services.session_service.org_doc", return_value=mock_doc),
+        patch("app.services.session_service.compaction.should_compact", return_value=True),
+        patch("app.services.session_service.compaction.compact_events", new=AsyncMock(return_value=[])) as mock_compact,
+    ):
+        await service._persist("org-test", session)
+
+    mock_compact.assert_called_once_with("org-test", session.events)
+    mock_doc.set.assert_called_once()
+
+
+async def test_persist_swallows_compaction_failure_and_still_writes():
+    service = FirestoreSessionService()
+    session = _session()
+    mock_doc = MagicMock()
+    with (
+        patch("app.services.session_service.org_doc", return_value=mock_doc),
+        patch("app.services.session_service.compaction.should_compact", return_value=True),
+        patch(
+            "app.services.session_service.compaction.compact_events",
+            new=AsyncMock(side_effect=RuntimeError("summarizer blew up")),
+        ),
+        patch("app.services.session_service.store.log_activity") as mock_log,
+    ):
+        await service._persist("org-test", session)  # must not raise
+
+    mock_log.assert_called_once()
+    assert mock_log.call_args.args[2] == "compaction-failed"
+    mock_doc.set.assert_called_once()

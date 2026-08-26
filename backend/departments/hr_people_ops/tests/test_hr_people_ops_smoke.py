@@ -9,7 +9,12 @@ async def test_policy_question_does_not_need_human():
     async def fake(agent, session_service, org_id, agent_id, prompt, attachment=None):
         if agent.name.rsplit("_", 1)[0] == "hr_intake_classifier":
             return json.dumps({"request_type": "policy_question", "summary": "asking about remote work policy"})
-        return "You can work remotely up to 3 days a week by default."
+        return json.dumps(
+            {
+                "answer": "You can work remotely up to 3 days a week by default.",
+                "cited_quote": "employees may work remotely up to 3 days per week by default",
+            }
+        )
 
     task = Task(
         id="task-1",
@@ -32,11 +37,49 @@ async def test_policy_question_does_not_need_human():
     assert result.data["request_type"] == "policy_question"
 
 
+async def test_hallucinated_citation_escalates_to_human():
+    async def fake(agent, session_service, org_id, agent_id, prompt, attachment=None):
+        if agent.name.rsplit("_", 1)[0] == "hr_intake_classifier":
+            return json.dumps({"request_type": "policy_question", "summary": "asking about sabbaticals"})
+        return json.dumps(
+            {
+                "answer": "Employees get an 8-week paid sabbatical after 5 years.",
+                "cited_quote": "employees are entitled to an 8-week paid sabbatical after 5 years of service",
+            }
+        )
+
+    task = Task(
+        id="task-3",
+        title="Sabbatical question",
+        description="Do we offer sabbaticals?",
+        task_type="hr_request",
+        status=TaskStatus.TODO,
+        assignee="hr_people_ops",
+        created_by="ceo",
+    )
+    with (
+        patch("departments.hr_people_ops.agents.run_agent_turn", new=AsyncMock(side_effect=fake)),
+        patch("app.services.store.update_task"),
+        patch("shared.audit_chain.append_entry"),
+        patch("app.services.pubsub_client.publish_message"),
+    ):
+        result = await on_task_received("org-test", task)
+
+    assert result.success is False
+    assert result.needs_human is True
+    assert result.data["grounded"] is False
+
+
 async def test_leave_request_always_needs_human():
     async def fake(agent, session_service, org_id, agent_id, prompt, attachment=None):
         if agent.name.rsplit("_", 1)[0] == "hr_intake_classifier":
             return json.dumps({"request_type": "leave_request", "summary": "requesting 5 days PTO next month"})
-        return "Standard PTO accrual is 15 days/year; this needs HR approval."
+        return json.dumps(
+            {
+                "answer": "Standard PTO accrual is 15 days/year; this needs HR approval.",
+                "cited_quote": "full-time employees accrue 15 days of PTO per year",
+            }
+        )
 
     task = Task(
         id="task-2",
