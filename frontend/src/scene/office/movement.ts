@@ -52,6 +52,10 @@ export function artAnchorFor(zone: DepartmentZone): Point {
   return { x: zone.x + zone.width * 0.5, y: zone.y + zone.height * 0.12 }
 }
 
+export function bookshelfAnchorFor(zone: DepartmentZone): Point {
+  return { x: zone.x + zone.width * 0.12, y: zone.y + zone.height * 0.85 }
+}
+
 export function hashId(id: string): number {
   let hash = 0
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0

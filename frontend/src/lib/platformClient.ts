@@ -239,3 +239,73 @@ export function pauseAgent(orgId: string, agentId: string): Promise<{ paused: bo
 export function resumeAgent(orgId: string, agentId: string): Promise<{ paused: boolean }> {
   return post(`/api/org/${orgId}/agents/${agentId}/resume`, {}) as Promise<{ paused: boolean }>
 }
+
+// ---- knowledge base (per-department org-uploaded documents) ----
+
+export interface KnowledgeDoc {
+  id: string
+  title: string
+  text: string
+  createdBy: string
+  createdAt: string
+}
+
+export function listKnowledgeDocs(orgId: string, departmentId: string): Promise<KnowledgeDoc[]> {
+  return get(`/api/org/${orgId}/departments/${departmentId}/knowledge_base`) as Promise<KnowledgeDoc[]>
+}
+
+export function createKnowledgeDoc(orgId: string, departmentId: string, title: string, text: string): Promise<KnowledgeDoc> {
+  return post(`/api/org/${orgId}/departments/${departmentId}/knowledge_base`, { title, text }) as Promise<KnowledgeDoc>
+}
+
+export function deleteKnowledgeDoc(orgId: string, departmentId: string, docId: string): Promise<unknown> {
+  return del(`/api/org/${orgId}/departments/${departmentId}/knowledge_base/${docId}`)
+}
+
+// ---- integrations ("Connected apps") ----
+
+export interface IntegrationConfig {
+  id: string
+  kind: string
+  baseUrl: string
+  authType: string
+  enabled: boolean
+  connectedDepartments: string[]
+  createdAt: string
+}
+
+export function listIntegrations(orgId: string): Promise<IntegrationConfig[]> {
+  return get(`/api/org/${orgId}/integrations`) as Promise<IntegrationConfig[]>
+}
+
+export function updateIntegrationDepartments(
+  orgId: string,
+  integrationId: string,
+  connectedDepartments: string[],
+): Promise<unknown> {
+  return post(`/api/org/${orgId}/integrations/${integrationId}/departments`, {
+    connected_departments: connectedDepartments,
+  })
+}
+
+export function toggleIntegration(orgId: string, integrationId: string, enabled: boolean): Promise<unknown> {
+  return post(`/api/org/${orgId}/integrations/${integrationId}/toggle?enabled=${enabled}`, {})
+}
+
+// ---- access requests ----
+
+export interface AccessRequestEntry {
+  id: string
+  integrationId: string
+  departmentId: string
+  status: 'pending' | 'approved' | 'denied'
+  createdAt: string
+}
+
+export function listAccessRequests(orgId: string): Promise<AccessRequestEntry[]> {
+  return get(`/api/org/${orgId}/access_requests`) as Promise<AccessRequestEntry[]>
+}
+
+export function resolveAccessRequest(orgId: string, requestId: string, approve: boolean): Promise<unknown> {
+  return post(`/api/org/${orgId}/access_requests/${requestId}/resolve?approve=${approve}`, {})
+}

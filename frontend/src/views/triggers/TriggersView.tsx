@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Collapsible } from '../../components/Collapsible'
 import {
   createTrigger,
   deleteTrigger,
@@ -6,6 +7,29 @@ import {
   watchTriggers,
 } from '../../lib/platformClient'
 import type { Trigger, TriggerType } from '../../lib/types'
+
+function TriggerRow({ orgId, t }: { orgId: string; t: Trigger }) {
+  return (
+    <div className="corp-divider-row">
+      <strong>{t.name}</strong> <span className="corp-badge" style={{ background: 'var(--corp-sky-light)' }}>{t.type}</span>
+      <div className="corp-text-muted" style={{ fontSize: '0.85rem' }}>
+        → {t.targetAgent} {t.cron && `· ${t.cron}`}
+        {t.lastFiredAt && ` · last fired ${new Date(t.lastFiredAt).toLocaleString()}`}
+      </div>
+      {t.type === 'webhook' && t.webhookSecret && (
+        <div className="corp-text-muted" style={{ fontSize: '0.75rem' }}>secret: {t.webhookSecret}</div>
+      )}
+      <div style={{ marginTop: 4, display: 'flex', gap: 8 }}>
+        <button className="corp-button" onClick={() => toggleTrigger(orgId, t.id, !t.enabled)}>
+          {t.enabled ? 'Disable' : 'Enable'}
+        </button>
+        <button className="corp-button" onClick={() => deleteTrigger(orgId, t.id)}>
+          Delete
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export function TriggersView({ orgId }: { orgId: string }) {
   const [triggers, setTriggers] = useState<Trigger[]>([])
@@ -62,28 +86,18 @@ export function TriggersView({ orgId }: { orgId: string }) {
       </div>
 
       <div className="corp-panel">
-        <h3 style={{ marginTop: 0 }}>Triggers</h3>
-        {triggers.length === 0 && <p>No triggers configured.</p>}
-        {triggers.map((t) => (
-          <div key={t.id} className="corp-divider-row">
-            <strong>{t.name}</strong> <span className="corp-badge" style={{ background: 'var(--corp-sky-light)' }}>{t.type}</span>
-            <div className="corp-text-muted" style={{ fontSize: '0.85rem' }}>
-              → {t.targetAgent} {t.cron && `· ${t.cron}`}
-              {t.lastFiredAt && ` · last fired ${new Date(t.lastFiredAt).toLocaleString()}`}
-            </div>
-            {t.type === 'webhook' && t.webhookSecret && (
-              <div className="corp-text-muted" style={{ fontSize: '0.75rem' }}>secret: {t.webhookSecret}</div>
-            )}
-            <div style={{ marginTop: 4, display: 'flex', gap: 8 }}>
-              <button className="corp-button" onClick={() => toggleTrigger(orgId, t.id, !t.enabled)}>
-                {t.enabled ? 'Disable' : 'Enable'}
-              </button>
-              <button className="corp-button" onClick={() => deleteTrigger(orgId, t.id)}>
-                Delete
-              </button>
-            </div>
-          </div>
-        ))}
+        <Collapsible title="Schedules" defaultOpen>
+          {triggers.filter((t) => t.type === 'schedule').length === 0 && <p>No schedules configured.</p>}
+          {triggers.filter((t) => t.type === 'schedule').map((t) => (
+            <TriggerRow key={t.id} orgId={orgId} t={t} />
+          ))}
+        </Collapsible>
+        <Collapsible title="Webhooks" defaultOpen>
+          {triggers.filter((t) => t.type === 'webhook').length === 0 && <p>No webhooks configured.</p>}
+          {triggers.filter((t) => t.type === 'webhook').map((t) => (
+            <TriggerRow key={t.id} orgId={orgId} t={t} />
+          ))}
+        </Collapsible>
       </div>
     </div>
   )

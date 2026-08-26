@@ -27,16 +27,52 @@ from app.services import store
 from departments import list_departments
 
 
+# Original personas (this project's own invention, no resemblance to any
+# media property) — one per seeded agent id. `character` picks a stable
+# Kenney sprite variant (frontend/src/scene/office/tileset.ts's
+# variantForCharacter) so agents sharing a department zone (e.g. ceo +
+# executive) render as visibly distinct people, not identical hash-based
+# twins — see docs/adr for the office-scene overhaul this resolves.
+PERSONAS: dict[str, dict[str, str]] = {
+    "ceo": {"name": "Priya Nakamura", "description": "CEO — sets direction and decomposes every goal into department work.", "character": "char_0"},
+    "executive": {"name": "Dev Okafor", "description": "Chief of Staff — turns every department's board into one weekly digest.", "character": "char_1"},
+    "finance_audit": {"name": "Wren Castellano", "description": "Finance & Audit Lead — catches the invoice that doesn't add up.", "character": "char_2"},
+    "engineering_sre": {"name": "Kato Reyes", "description": "Engineering & SRE Lead — keeps the lights on and the pager quiet.", "character": "char_3"},
+    "legal_risk": {"name": "Odalys Ferreira", "description": "Legal & Risk Lead — reads the fine print first.", "character": "char_4"},
+    "hr_people_ops": {"name": "Sanjay Bloom", "description": "HR & People Ops Lead — knows everyone's start date.", "character": "char_5"},
+    "customer_support": {"name": "Mireille Tran", "description": "Customer Support Lead — turns angry tickets into calm ones.", "character": "char_6"},
+    "marketing_comms": {"name": "Ezra Lindqvist", "description": "Marketing & Comms Lead — writes the launch email people actually read.", "character": "char_7"},
+    "product_analytics": {"name": "Noor Ashworth", "description": "Product & Analytics Lead — has a dashboard for the dashboard.", "character": "char_0"},
+    "sales_crm": {"name": "Tobias Kern", "description": "Sales & CRM Lead — never forgets a follow-up.", "character": "char_1"},
+}
+
+
 def seed_agents(org_id: str) -> list[str]:
     agent_ids = ["ceo"]
+    ceo_persona = PERSONAS["ceo"]
     store.upsert_agent(
         org_id,
-        Agent(id="ceo", name="CEO", department="executive", is_ceo=True, accent_color="lemon"),
+        Agent(
+            id="ceo",
+            name=ceo_persona["name"],
+            description=ceo_persona["description"],
+            character=ceo_persona["character"],
+            department="executive",
+            is_ceo=True,
+            accent_color="lemon",
+        ),
     )
     for dept in list_departments():
+        persona = PERSONAS.get(dept.department_id, {})
         store.upsert_agent(
             org_id,
-            Agent(id=dept.department_id, name=dept.display_name, department=dept.department_id),
+            Agent(
+                id=dept.department_id,
+                name=persona.get("name", dept.display_name),
+                description=persona.get("description", ""),
+                character=persona.get("character", "default"),
+                department=dept.department_id,
+            ),
         )
         agent_ids.append(dept.department_id)
     return agent_ids

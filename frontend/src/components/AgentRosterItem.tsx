@@ -1,3 +1,4 @@
+import { Crown } from 'lucide-react'
 import { StatusBadge } from '../design/StatusBadge'
 import type { Agent } from '../lib/types'
 
@@ -23,7 +24,7 @@ export function AgentRosterItem({
       }}
     >
       <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {agent.name} {agent.isCeo && <span title="CEO">👑</span>}
+        {agent.name} {agent.isCeo && <Crown size={13} aria-label="CEO" style={{ verticalAlign: -2 }} />}
       </span>
       <StatusBadge status={agent.status} />
     </button>

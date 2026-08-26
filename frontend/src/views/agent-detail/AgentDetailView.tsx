@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Crown, Mail, Terminal as TerminalIcon } from 'lucide-react'
 import { StatusBadge } from '../../design/StatusBadge'
 import { pauseAgent, resumeAgent, watchMessages, type MessageEntry } from '../../lib/platformClient'
 import { TerminalView } from '../terminal/TerminalView'
@@ -43,10 +44,10 @@ export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent 
   }
 
   return (
-    <div className="corp-panel" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    <div className="corp-panel" style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
         <h3 style={{ margin: 0 }}>
-          {agent.name} {agent.isCeo && <span title="CEO">👑</span>}
+          {agent.name} {agent.isCeo && <Crown size={14} aria-label="CEO" style={{ verticalAlign: -2 }} />}
         </h3>
         <span className="corp-text-muted">{agent.department}</span>
         <StatusBadge status={agent.status} />
@@ -55,23 +56,27 @@ export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent 
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
         <button
           className={`corp-button${tab === 'terminal' ? ' corp-button--active' : ''}`}
           onClick={() => setTab('terminal')}
         >
+          <TerminalIcon size={14} aria-hidden style={{ marginRight: 4, verticalAlign: -2 }} />
           Terminal
         </button>
         <button
           className={`corp-button${tab === 'messages' ? ' corp-button--active' : ''}`}
           onClick={() => setTab('messages')}
         >
+          <Mail size={14} aria-hidden style={{ marginRight: 4, verticalAlign: -2 }} />
           Messages
         </button>
       </div>
 
-      {tab === 'terminal' && <TerminalView orgId={orgId} agentId={agent.id} />}
-      {tab === 'messages' && <AgentMessages orgId={orgId} agent={agent} />}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        {tab === 'terminal' && <TerminalView orgId={orgId} agentId={agent.id} />}
+        {tab === 'messages' && <AgentMessages orgId={orgId} agent={agent} />}
+      </div>
     </div>
   )
 }

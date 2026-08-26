@@ -26,7 +26,10 @@ export function Sidebar({
   const rankAndFile = agents.filter((a) => !a.isCeo)
 
   return (
-    <div className="corp-panel" style={{ width: 'var(--corp-sidebar-width)', flexShrink: 0, overflowY: 'auto' }}>
+    <div
+      className="corp-panel"
+      style={{ width: 'var(--corp-sidebar-width)', flexShrink: 0, height: '100%', minHeight: 0, overflowY: 'auto' }}
+    >
       {ceoAgents.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <h4 style={SECTION_HEADER_STYLE}>Office of the CEO</h4>

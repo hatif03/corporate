@@ -1,9 +1,24 @@
 import { useEffect, useRef } from 'react'
 import { Application, Assets, Container, Graphics, Sprite, Text, Texture, TilingSprite } from 'pixi.js'
-import { DEPARTMENT_ZONES, type DepartmentZone } from './departments'
-import { ART_TILE, CABINET_TILE, CHARACTER_VARIANTS, DESK_TILE, FLOOR_TILE, PLANT_TILE, TRASH_TILE, variantForDepartment } from './tileset'
+import { DEPARTMENT_ZONES, WORLD_HEIGHT, WORLD_WIDTH, type DepartmentZone } from './departments'
+import { CORRIDOR_RECTS } from './corridors'
+import {
+  ART_TILE,
+  BOOKSHELF_TILE,
+  CABINET_TILE,
+  CHARACTER_VARIANTS,
+  CORRIDOR_FLOOR_TILE,
+  DESK_TILE,
+  DOOR_TILE,
+  FLOOR_TILE,
+  PLANT_TILE,
+  TRASH_TILE,
+  WALL_TILE,
+  variantForCharacter,
+} from './tileset'
 import {
   artAnchorFor,
+  bookshelfAnchorFor,
   cabinetAnchorFor,
   deskAnchorFor,
   getTargetPosition,
@@ -36,6 +51,7 @@ const BOB_AMPLITUDE_ACTIVE = 2.2 // px — a slightly busier bob while actively 
 const BOB_SPEED_IDLE = 0.05 // radians/frame
 const BOB_SPEED_ACTIVE = 0.11 // radians/frame
 const GLOW_SPEED = 0.06 // radians/frame — pulsing "at work" glow under active agents
+const WALL_THICKNESS = 16 // px, tiled strip along each room's north edge
 
 interface AgentSprite {
   container: Container
@@ -44,6 +60,7 @@ interface AgentSprite {
   glow: Graphics
   baseTarget: { x: number; y: number }
   departmentId: string
+  character: string
   status: AgentStatus
   walkFrame: 0 | 1
   tickCount: number
@@ -52,12 +69,19 @@ interface AgentSprite {
 
 /**
  * Real tile/sprite office floor (Kenney CC0 RPG Urban Pack, see tileset.ts):
- * a TilingSprite floor + a small furniture set per department zone (desk,
- * cabinet, plant, trash, wall art), and one character sprite per agent that
- * walks between a "desk" and "idle" anchor as its status changes
+ * a genuine 3x3 room-and-corridor layout (departments.ts / corridors.ts),
+ * tiled walls + doors, a small furniture set per room (desk, cabinet,
+ * bookshelf, plant, trash, wall art), and one character sprite per agent
+ * that walks between a "desk" and "idle" anchor as its status changes
  * (movement.ts — pure client-side, see ADR-0013). Agents are diffed against
  * the previous frame instead of being torn down and rebuilt on every
  * Firestore tick, so an in-progress walk is never interrupted.
+ *
+ * Everything is drawn into a single `world` container, which is rescaled
+ * and centered to fit whatever screen space the host panel actually has
+ * (Pixi v8's native `resizeTo`, plus our own fit-to-container pass) — the
+ * scene is a fixed logical size (WORLD_WIDTH x WORLD_HEIGHT), never a fixed
+ * pixel size.
  *
  * On top of that base: every agent sprite has a continuous subtle
  * "breathing" bob (never fully static), idle agents drift in a slow ambient
@@ -68,6 +92,7 @@ interface AgentSprite {
 export function OfficeFloor({ agents }: { agents: Agent[] }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<Application | null>(null)
+  const worldRef = useRef<Container | null>(null)
   const readyRef = useRef(false)
   const spritesRef = useRef<Map<string, AgentSprite>>(new Map())
   const texturesRef = useRef<Map<string, Texture>>(new Map())
@@ -76,10 +101,22 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
   const agentsRef = useRef<Agent[]>(agents)
   agentsRef.current = agents
 
+  function fitWorld() {
+    const world = worldRef.current
+    const el = containerRef.current
+    if (!world || !el) return
+    const w = el.clientWidth
+    const h = el.clientHeight
+    if (w === 0 || h === 0) return
+    const scale = Math.min(w / WORLD_WIDTH, h / WORLD_HEIGHT)
+    world.scale.set(scale)
+    world.position.set((w - WORLD_WIDTH * scale) / 2, (h - WORLD_HEIGHT * scale) / 2)
+  }
+
   function reconcile(currentAgents: Agent[]) {
-    const app = appRef.current
+    const world = worldRef.current
     const textures = texturesRef.current
-    if (!app || !readyRef.current) return
+    if (!world || !readyRef.current) return
 
     const seen = new Set<string>()
     // Stable per-zone ordering: same input always produces the same
@@ -99,7 +136,7 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
         let sprite = spritesRef.current.get(agent.id)
 
         if (!sprite) {
-          const variant = variantForDepartment(agent.department)
+          const variant = variantForCharacter(agent.character, agent.department)
           const container = new Container()
           container.position.set(baseTarget.x, baseTarget.y)
 
@@ -114,7 +151,7 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
           const statusDot = new Graphics()
           container.addChild(statusDot)
 
-          app.stage.addChild(container)
+          world.addChild(container)
           sprite = {
             container,
             charSprite,
@@ -122,6 +159,7 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
             glow,
             baseTarget,
             departmentId: agent.department,
+            character: agent.character,
             status: agent.status,
             walkFrame: 0,
             tickCount: 0,
@@ -132,8 +170,9 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
 
         sprite.baseTarget = baseTarget
         sprite.departmentId = agent.department
+        sprite.character = agent.character
         sprite.status = agent.status
-        const variant = variantForDepartment(agent.department)
+        const variant = variantForCharacter(agent.character, agent.department)
         sprite.statusDot.clear().circle(10, -4, 5).fill({ color: STATUS_DOT_COLOR[agent.status] ?? 0xa899b5 }).stroke({
           width: 1,
           color: 0x2b2b2b,
@@ -159,25 +198,44 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
     appRef.current = app
 
     async function setup() {
-      await app.init({ width: 540, height: 340, backgroundColor: 0xf4f1ea, antialias: true })
+      await app.init({ resizeTo: containerRef.current ?? undefined, backgroundColor: 0xf4f1ea, antialias: true })
       if (destroyed || !containerRef.current) {
         app.destroy(true)
         return
       }
       containerRef.current.appendChild(app.canvas)
 
+      const world = new Container()
+      app.stage.addChild(world)
+      worldRef.current = world
+
       const allSprites = [
         FLOOR_TILE,
         DESK_TILE,
         CABINET_TILE,
+        BOOKSHELF_TILE,
         PLANT_TILE,
         TRASH_TILE,
         ART_TILE,
+        WALL_TILE,
+        DOOR_TILE,
+        CORRIDOR_FLOOR_TILE,
         ...CHARACTER_VARIANTS.flatMap((v) => [v.idle, v.walkA, v.walkB]),
       ]
       const loaded = (await Assets.load(allSprites)) as Record<string, Texture>
       for (const [url, texture] of Object.entries(loaded)) texturesRef.current.set(url, texture)
       if (destroyed) return
+
+      // Corridors first, underneath the rooms.
+      for (const rect of CORRIDOR_RECTS) {
+        const floor = new TilingSprite({
+          texture: texturesRef.current.get(CORRIDOR_FLOOR_TILE),
+          width: rect.width,
+          height: rect.height,
+        })
+        floor.position.set(rect.x, rect.y)
+        world.addChild(floor)
+      }
 
       for (const zone of DEPARTMENT_ZONES) {
         const floor = new TilingSprite({
@@ -188,52 +246,81 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
         floor.position.set(zone.x, zone.y)
         floor.tint = zone.color
         floor.alpha = 0.55
-        app.stage.addChild(floor)
+        world.addChild(floor)
 
-        const border = new Graphics().rect(zone.x, zone.y, zone.width, zone.height).stroke({ width: 2, color: 0x2b2b2b })
-        app.stage.addChild(border)
+        // Tiled wall along the room's north edge.
+        const wall = new TilingSprite({
+          texture: texturesRef.current.get(WALL_TILE),
+          width: zone.width,
+          height: WALL_THICKNESS,
+        })
+        wall.position.set(zone.x, zone.y)
+        world.addChild(wall)
+
+        // Door on the south edge, facing the corridor system.
+        const door = new Sprite(texturesRef.current.get(DOOR_TILE))
+        door.anchor.set(0.5, 1)
+        door.scale.set(1.6)
+        door.position.set(zone.x + zone.width * 0.5, zone.y + zone.height)
+        world.addChild(door)
+
+        // Heavier double-line border on top of the wall/door art, matching
+        // the app's existing hard-shadow/inset-border design language.
+        const border = new Graphics()
+          .rect(zone.x, zone.y, zone.width, zone.height)
+          .stroke({ width: 3, color: 0x2b2b2b })
+          .rect(zone.x + 4, zone.y + 4, zone.width - 8, zone.height - 8)
+          .stroke({ width: 1, color: 0x2b2b2b, alpha: 0.4 })
+        world.addChild(border)
 
         const label = new Text({
           text: zone.displayName,
-          style: { fontSize: 12, fill: 0x1c1c1c, fontWeight: 'bold' },
+          style: { fontSize: 14, fill: 0x1c1c1c, fontWeight: 'bold' },
         })
-        label.position.set(zone.x + 6, zone.y + 4)
-        app.stage.addChild(label)
+        label.position.set(zone.x + 10, zone.y + WALL_THICKNESS + 6)
+        world.addChild(label)
 
         const desk = new Sprite(texturesRef.current.get(DESK_TILE))
         desk.anchor.set(0.5)
         desk.scale.set(1.6)
         const deskAnchor = deskAnchorFor(zone as DepartmentZone)
         desk.position.set(deskAnchor.x, deskAnchor.y + 10)
-        app.stage.addChild(desk)
+        world.addChild(desk)
 
         const cabinet = new Sprite(texturesRef.current.get(CABINET_TILE))
         cabinet.anchor.set(0.5)
         cabinet.scale.set(1.3)
         const cabinetAnchor = cabinetAnchorFor(zone as DepartmentZone)
         cabinet.position.set(cabinetAnchor.x, cabinetAnchor.y)
-        app.stage.addChild(cabinet)
+        world.addChild(cabinet)
+
+        const bookshelf = new Sprite(texturesRef.current.get(BOOKSHELF_TILE))
+        bookshelf.anchor.set(0.5)
+        bookshelf.scale.set(1.3)
+        const bookshelfAnchor = bookshelfAnchorFor(zone as DepartmentZone)
+        bookshelf.position.set(bookshelfAnchor.x, bookshelfAnchor.y)
+        world.addChild(bookshelf)
 
         const trash = new Sprite(texturesRef.current.get(TRASH_TILE))
         trash.anchor.set(0.5)
         trash.scale.set(1.1)
         const trashAnchor = trashAnchorFor(zone as DepartmentZone)
         trash.position.set(trashAnchor.x, trashAnchor.y)
-        app.stage.addChild(trash)
+        world.addChild(trash)
 
         const art = new Sprite(texturesRef.current.get(ART_TILE))
         art.anchor.set(0.5)
         art.scale.set(1.1)
         const artAnchor = artAnchorFor(zone as DepartmentZone)
         art.position.set(artAnchor.x, artAnchor.y)
-        app.stage.addChild(art)
+        world.addChild(art)
 
         const plant = new Sprite(texturesRef.current.get(PLANT_TILE))
         plant.anchor.set(0.5, 0.85) // base of the plant, so sway rotation pivots at the pot
         plant.scale.set(1.3)
         const plantAnchor = plantAnchorFor(zone as DepartmentZone)
         plant.position.set(plantAnchor.x, plantAnchor.y)
-        app.stage.addChild(plant)
+        world.addChild(plant)
         plantsRef.current.push(plant)
       }
 
@@ -269,7 +356,7 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
             if (sprite.tickCount >= WALK_FRAME_TICKS) {
               sprite.tickCount = 0
               sprite.walkFrame = sprite.walkFrame === 0 ? 1 : 0
-              const variant = variantForDepartment(sprite.departmentId)
+              const variant = variantForCharacter(sprite.character, sprite.departmentId)
               const walkTexture = sprite.walkFrame === 0 ? variant.walkA : variant.walkB
               sprite.charSprite.texture = texturesRef.current.get(walkTexture) ?? sprite.charSprite.texture
             }
@@ -294,16 +381,22 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
       })
 
       readyRef.current = true
+      fitWorld()
       reconcile(agentsRef.current)
     }
 
     void setup()
 
+    const resizeObserver = new ResizeObserver(() => fitWorld())
+    if (containerRef.current) resizeObserver.observe(containerRef.current)
+
     return () => {
       destroyed = true
       readyRef.current = false
+      resizeObserver.disconnect()
       spritesRef.current.clear()
       plantsRef.current = []
+      worldRef.current = null
       app.destroy(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -314,5 +407,5 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agents])
 
-  return <div ref={containerRef} className="corp-panel" style={{ width: 'fit-content' }} />
+  return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 }

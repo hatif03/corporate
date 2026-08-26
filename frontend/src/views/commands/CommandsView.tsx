@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Collapsible } from '../../components/Collapsible'
 
 interface Endpoint {
   method: string
@@ -168,10 +169,11 @@ export function CommandsView({ orgId }: { orgId: string }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {groups.map((g) => (
         <div key={g.title} className="corp-panel">
-          <h3 style={{ marginTop: 0 }}>{g.title}</h3>
-          {g.endpoints.map((e) => (
-            <EndpointBlock key={`${e.method} ${e.path}`} endpoint={e} />
-          ))}
+          <Collapsible title={g.title}>
+            {g.endpoints.map((e) => (
+              <EndpointBlock key={`${e.method} ${e.path}`} endpoint={e} />
+            ))}
+          </Collapsible>
         </div>
       ))}
     </div>

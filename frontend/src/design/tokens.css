@@ -62,6 +62,7 @@
   --corp-border: var(--corp-ink-900);
   --corp-text: var(--corp-ink-900);
   --corp-sidebar-width: 220px;
+  --corp-rightcol-width: 420px;
 
   /* dark theme: add a :root[data-theme='dark'] override block here if a
    * theme toggle is ever built — every component already reads these
