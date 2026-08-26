@@ -6,6 +6,8 @@ from .department import TaskResult
 from .trigger import Trigger, TriggerType, Worker, WorkerStatus
 from .integration import Integration, IntegrationAuthType
 from .org_settings import OrgSettings
+from .knowledge_base import KnowledgeDoc
+from .access_request import AccessRequest, AccessRequestStatus
 
 __all__ = [
     "Agent",
@@ -26,4 +28,7 @@ __all__ = [
     "Integration",
     "IntegrationAuthType",
     "OrgSettings",
+    "KnowledgeDoc",
+    "AccessRequest",
+    "AccessRequestStatus",
 ]

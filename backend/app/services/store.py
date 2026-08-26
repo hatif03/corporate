@@ -10,6 +10,7 @@ explicit camelCase keys used in update_task/update_agent_status below —
 never write a snake_case key directly.
 """
 
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -17,11 +18,14 @@ from google.api_core.exceptions import Conflict
 from pydantic.alias_generators import to_camel
 
 from app.models import (
+    AccessRequest,
+    AccessRequestStatus,
     Agent,
     AgentStatus,
     Attachment,
     CarryingToken,
     Integration,
+    KnowledgeDoc,
     Message,
     OrgSettings,
     Task,
@@ -238,6 +242,61 @@ def list_integrations(org_id: str) -> list[Integration]:
 
 def set_integration_enabled(org_id: str, integration_id: str, enabled: bool) -> None:
     org_doc(org_id, "integrations", integration_id).update({"enabled": enabled})
+
+
+def set_integration_departments(org_id: str, integration_id: str, connected_departments: list[str]) -> None:
+    org_doc(org_id, "integrations", integration_id).update({"connectedDepartments": connected_departments})
+
+
+# ---- knowledge base (orgs/{orgId}/departments/{deptId}/knowledge_base/{id}) --
+
+
+def append_kb_document(org_id: str, department_id: str, doc: KnowledgeDoc) -> None:
+    data = doc.model_dump(by_alias=True, exclude={"id"})
+    org_doc(org_id, "departments", department_id).collection("knowledge_base").document(doc.id).set(data)
+
+
+def list_kb_documents(org_id: str, department_id: str) -> list[KnowledgeDoc]:
+    query = (
+        org_doc(org_id, "departments", department_id)
+        .collection("knowledge_base")
+        .order_by("createdAt", direction="DESCENDING")
+    )
+    return [KnowledgeDoc(id=d.id, **d.to_dict()) for d in query.stream()]
+
+
+def delete_kb_document(org_id: str, department_id: str, doc_id: str) -> None:
+    org_doc(org_id, "departments", department_id).collection("knowledge_base").document(doc_id).delete()
+
+
+# ---- access requests (orgs/{orgId}/access_requests/{id}) --------------------
+
+
+def file_access_request(org_id: str, integration_id: str, department_id: str) -> AccessRequest:
+    """Files a new pending request, or returns the existing pending one for
+    this (integration, department) pair unchanged — repeated denied attempts
+    shouldn't spam the owner's queue with duplicates."""
+    existing = [
+        r
+        for r in list_access_requests(org_id)
+        if r.integration_id == integration_id and r.department_id == department_id and r.status == AccessRequestStatus.PENDING
+    ]
+    if existing:
+        return existing[0]
+    request = AccessRequest(id=f"areq-{uuid.uuid4().hex[:10]}", integration_id=integration_id, department_id=department_id)
+    data = request.model_dump(by_alias=True, exclude={"id"})
+    org_doc(org_id, "access_requests", request.id).set(data)
+    return request
+
+
+def list_access_requests(org_id: str) -> list[AccessRequest]:
+    return [AccessRequest(id=d.id, **d.to_dict()) for d in org_collection(org_id, "access_requests").stream()]
+
+
+def resolve_access_request(org_id: str, request_id: str, status: AccessRequestStatus, resolved_by: str) -> None:
+    org_doc(org_id, "access_requests", request_id).update(
+        {"status": status.value, "resolvedAt": _now(), "resolvedBy": resolved_by}
+    )
 
 
 # ---- org membership (defense-in-depth auth, see app/services/auth.py) ------

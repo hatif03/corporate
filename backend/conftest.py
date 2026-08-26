@@ -34,6 +34,18 @@ def _default_no_memory():
 
 
 @pytest.fixture(autouse=True)
+def _default_no_kb_documents():
+    """department_kb_text (app/services/knowledge_base.py) calls
+    store.list_kb_documents as its "has anything been uploaded" check before
+    falling back to a department's static corpus — real network call
+    otherwise. Empty (nothing uploaded) is the safe default, matching a
+    fresh org's actual behavior. Tests that exercise real KB content
+    override this locally."""
+    with patch("app.services.store.list_kb_documents", return_value=[]):
+        yield
+
+
+@pytest.fixture(autouse=True)
 def _bypass_org_auth():
     """API tests exercise route logic, not the auth layer itself (that has
     its own dedicated tests/test_auth.py) — override the require_org_member

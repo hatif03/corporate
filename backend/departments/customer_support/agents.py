@@ -11,6 +11,7 @@ from pathlib import Path
 from app.adk_agents.factory import build_tiered_stage_agents
 from app.adk_agents.runtime import run_agent_turn
 from app.models import Task, TaskResult
+from app.services.knowledge_base import department_kb_text
 from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
 from departments.customer_support.knowledge_base import DEFAULT_KB_NOTE, KNOWLEDGE_BASE
@@ -57,7 +58,8 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
     )
     classification = IntentClassification(**_extract_json(classification_text))
 
-    kb_article = KNOWLEDGE_BASE.get(classification.intent, DEFAULT_KB_NOTE)
+    static_article = KNOWLEDGE_BASE.get(classification.intent, DEFAULT_KB_NOTE)
+    kb_article = department_kb_text(org_id, DEPARTMENT_ID, static_fallback=static_article)
     draft_input = f"KB ARTICLE:\n{kb_article}\n\nCUSTOMER MESSAGE:\n{task.description}"
     draft_text = await run_agent_turn(response_agents[tier], _session_service, org_id, DEPARTMENT_ID, draft_input)
     draft = DraftResponse(**_extract_json(draft_text))

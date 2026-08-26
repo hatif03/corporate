@@ -12,6 +12,7 @@ from pathlib import Path
 from app.adk_agents.factory import build_tiered_stage_agents
 from app.adk_agents.runtime import run_agent_turn
 from app.models import Task, TaskResult
+from app.services.knowledge_base import department_kb_text
 from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
 from departments.hr_people_ops.handbook import HR_HANDBOOK
@@ -60,13 +61,14 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
     )
     classification = RequestClassification(**_extract_json(classification_text))
 
-    qa_input = f"HANDBOOK:\n{HR_HANDBOOK}\n\nREQUEST ({classification.request_type}): {classification.summary}"
+    handbook = department_kb_text(org_id, DEPARTMENT_ID, static_fallback=HR_HANDBOOK)
+    qa_input = f"HANDBOOK:\n{handbook}\n\nREQUEST ({classification.request_type}): {classification.summary}"
     answer_text = await run_agent_turn(handbook_qa_agents[tier], _session_service, org_id, DEPARTMENT_ID, qa_input)
     answer = HandbookAnswer(**_extract_json(answer_text))
 
     grounded = True
     if answer.cited_quote:
-        grounded = ground_quote(answer.cited_quote, HR_HANDBOOK) is not None
+        grounded = ground_quote(answer.cited_quote, handbook) is not None
 
     needs_human = classification.request_type == "leave_request" or not grounded
 

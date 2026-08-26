@@ -16,16 +16,18 @@ from app.services.integration_broker import call_integration
 
 SLACK_INTEGRATION_ID = "slack"
 JIRA_INTEGRATION_ID = "jira"
+DEPARTMENT_ID = "engineering_sre"
 
 
 async def notify_slack_channel(org_id: str, channel: str, text: str) -> dict:
     """Post a message to a Slack channel via the configured Slack integration.
     Fails soft (returns posted=False) if no Slack integration is configured
-    for this org yet — the incident's own task result already carries the
-    same information regardless."""
+    for this org yet, or if engineering_sre isn't in that integration's
+    connected_departments allowlist — the incident's own task result already
+    carries the same information regardless."""
     try:
         response = await call_integration(
-            org_id, SLACK_INTEGRATION_ID, "POST", "/chat.postMessage", json={"channel": channel, "text": text}
+            org_id, SLACK_INTEGRATION_ID, DEPARTMENT_ID, "POST", "/chat.postMessage", json={"channel": channel, "text": text}
         )
     except ValueError as exc:
         return {"posted": False, "reason": str(exc)}
@@ -42,6 +44,7 @@ async def create_jira_ticket(org_id: str, project_key: str, summary: str, descri
         response = await call_integration(
             org_id,
             JIRA_INTEGRATION_ID,
+            DEPARTMENT_ID,
             "POST",
             "/issue",
             json={

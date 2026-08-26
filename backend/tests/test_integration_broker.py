@@ -41,7 +41,7 @@ def test_store_secret_adds_version_when_secret_already_exists():
 async def test_call_integration_raises_for_unknown_integration():
     with patch("app.services.integration_broker.store.get_integration", return_value=None):
         with pytest.raises(ValueError, match="no integration"):
-            await integration_broker.call_integration("org-test", "integ-1", "GET", "/x")
+            await integration_broker.call_integration("org-test", "integ-1", "engineering_sre", "GET", "/x")
 
 
 async def test_call_integration_raises_for_disabled_integration():
@@ -51,7 +51,7 @@ async def test_call_integration_raises_for_disabled_integration():
     )
     with patch("app.services.integration_broker.store.get_integration", return_value=disabled):
         with pytest.raises(ValueError, match="disabled"):
-            await integration_broker.call_integration("org-test", "integ-1", "GET", "/x")
+            await integration_broker.call_integration("org-test", "integ-1", "engineering_sre", "GET", "/x")
 
 
 async def test_call_integration_attaches_bearer_auth_header():
@@ -69,8 +69,48 @@ async def test_call_integration_attaches_bearer_auth_header():
         patch.object(integration_broker, "_resolve_secret", return_value="xoxb-fake-token"),
         patch("app.services.integration_broker.httpx.AsyncClient", return_value=mock_async_client),
     ):
-        response = await integration_broker.call_integration("org-test", "integ-1", "POST", "/chat.postMessage")
+        response = await integration_broker.call_integration(
+            "org-test", "integ-1", "engineering_sre", "POST", "/chat.postMessage"
+        )
 
     assert response.status_code == 200
     call_kwargs = mock_async_client.__aenter__.return_value.request.call_args.kwargs
     assert call_kwargs["headers"]["Authorization"] == "Bearer xoxb-fake-token"
+
+
+async def test_call_integration_denies_department_not_in_allowlist_and_files_request():
+    restricted = Integration(
+        id="integ-1", kind="slack", base_url="https://slack.com/api",
+        auth_type=IntegrationAuthType.BEARER, secret_ref="ref", enabled=True,
+        connected_departments=["engineering_sre"],
+    )
+    with (
+        patch("app.services.integration_broker.store.get_integration", return_value=restricted),
+        patch("app.services.integration_broker.store.file_access_request") as mock_file_request,
+    ):
+        with pytest.raises(integration_broker.IntegrationAccessDenied):
+            await integration_broker.call_integration("org-test", "integ-1", "sales_crm", "GET", "/x")
+
+    mock_file_request.assert_called_once_with("org-test", "integ-1", "sales_crm")
+
+
+async def test_call_integration_allows_department_in_allowlist():
+    restricted = Integration(
+        id="integ-1", kind="slack", base_url="https://slack.com/api",
+        auth_type=IntegrationAuthType.BEARER, secret_ref="ref", enabled=True,
+        connected_departments=["engineering_sre"],
+    )
+    fake_response = httpx.Response(200, json={"ok": True})
+    mock_async_client = AsyncMock()
+    mock_async_client.__aenter__.return_value.request = AsyncMock(return_value=fake_response)
+
+    with (
+        patch("app.services.integration_broker.store.get_integration", return_value=restricted),
+        patch.object(integration_broker, "_resolve_secret", return_value="xoxb-fake-token"),
+        patch("app.services.integration_broker.httpx.AsyncClient", return_value=mock_async_client),
+    ):
+        response = await integration_broker.call_integration(
+            "org-test", "integ-1", "engineering_sre", "POST", "/chat.postMessage"
+        )
+
+    assert response.status_code == 200

@@ -116,21 +116,39 @@ def store_secret(project_id: str, secret_id: str, value: str) -> str:
     return version.name
 
 
+class IntegrationAccessDenied(ValueError):
+    """Raised when department_id isn't in the integration's
+    connected_departments allowlist. Subclasses ValueError deliberately —
+    every existing call site already does `except ValueError:` fail-soft
+    (notify_slack_channel, create_jira_ticket), so this needs zero changes
+    there while still being distinguishable by callers that care."""
+
+
 async def call_integration(
     org_id: str,
     integration_id: str,
+    department_id: str,
     method: str,
     path: str,
     json: dict | None = None,
     params: dict | None = None,
 ) -> httpx.Response:
     """Make an authenticated call to a configured third-party integration.
-    Raises ValueError if the integration doesn't exist or is disabled."""
+    Raises ValueError if the integration doesn't exist or is disabled, or
+    IntegrationAccessDenied (also a ValueError) if `department_id` isn't in
+    the integration's connected_departments allowlist — an empty allowlist
+    (every integration's default) means unrestricted, matching pre-existing
+    behavior exactly."""
     integration = store.get_integration(org_id, integration_id)
     if integration is None:
         raise ValueError(f"no integration '{integration_id}' configured for org '{org_id}'")
     if not integration.enabled:
         raise ValueError(f"integration '{integration_id}' is disabled")
+    if integration.connected_departments and department_id not in integration.connected_departments:
+        store.file_access_request(org_id, integration_id, department_id)
+        raise IntegrationAccessDenied(
+            f"department '{department_id}' doesn't have access to integration '{integration_id}' — access request filed"
+        )
 
     headers: dict[str, str] = {}
     if integration.auth_type != IntegrationAuthType.NONE and integration.secret_ref:

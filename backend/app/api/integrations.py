@@ -27,6 +27,13 @@ class CreateIntegrationRequest(BaseModel):
     connected_departments: list[str] = []
 
 
+@router.get("")
+async def list_integrations(org_id: str) -> list[dict]:
+    """Every integration configured for this org, public fields only —
+    backs the frontend's "Connected apps" panel (Settings tab)."""
+    return [i.model_dump(mode="json", by_alias=True, exclude={"secret_ref"}) for i in store.list_integrations(org_id)]
+
+
 @router.get("/catalog")
 async def catalog() -> dict:
     """The declarative template catalog — what kinds exist and what each needs."""
@@ -75,3 +82,15 @@ async def create_integration(org_id: str, body: CreateIntegrationRequest) -> dic
 async def toggle_integration(org_id: str, integration_id: str, enabled: bool) -> dict:
     store.set_integration_enabled(org_id, integration_id, enabled)
     return {"enabled": enabled}
+
+
+class UpdateDepartmentsRequest(BaseModel):
+    connected_departments: list[str]
+
+
+@router.post("/{integration_id}/departments")
+async def update_departments(org_id: str, integration_id: str, body: UpdateDepartmentsRequest) -> dict:
+    """Sets which departments may call this integration — empty means
+    unrestricted (see IntegrationAccessDenied in integration_broker.py)."""
+    store.set_integration_departments(org_id, integration_id, body.connected_departments)
+    return {"connected_departments": body.connected_departments}
