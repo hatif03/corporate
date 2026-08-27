@@ -32,6 +32,22 @@ class Settings(BaseSettings):
     # runaway loop. See ADR-0013.
     corporate_daily_gemini_call_limit: int = 5000
 
+    # OAuth "Connect with X" client IDs — public, safe as plain config.
+    # Client SECRETS are never here: they're resolved from Secret Manager at
+    # request time (app/services/oauth_providers.py), same pattern as every
+    # other third-party credential in this app. Each requires a one-time
+    # manual app registration in that provider's own developer console —
+    # see docs/adr/0018-oauth-connect-flow.md.
+    slack_oauth_client_id: str = ""
+    github_oauth_client_id: str = ""
+    notion_oauth_client_id: str = ""
+    # HMAC key signing the OAuth `state` param (CSRF protection) — required
+    # for /api/org/{org_id}/integrations/{kind}/oauth/start to work at all;
+    # a real secret, not the empty default, must be set before OAuth connect
+    # is usable. Plain env var is fine here (not a third-party credential,
+    # just a locally-generated signing key with no external value).
+    oauth_state_secret: str = ""
+
     local_dev: bool = False
 
     model_config = {"env_file": ".env"}

@@ -94,6 +94,43 @@ def test_update_persona_unknown_agent_404s():
     assert response.status_code == 404
 
 
+def test_list_agent_skills_returns_store_contents():
+    skills = [{"id": "s1", "title": "Escalate P1s", "instructions": "Page on-call.", "createdAt": "2026-01-01"}]
+    with patch("app.api.agents.store.list_agent_custom_skills", return_value=skills):
+        response = client.get("/api/org/demo/agents/engineering_sre/skills")
+    assert response.status_code == 200
+    assert response.json() == skills
+
+
+def test_add_agent_skill_unknown_agent_404s():
+    with patch("app.api.agents.store.get_agent", return_value=None):
+        response = client.post("/api/org/demo/agents/nope/skills", json={"title": "X", "instructions": "Y"})
+    assert response.status_code == 404
+
+
+def test_add_agent_skill_writes_through_store():
+    from app.models import Agent
+
+    agent = Agent(id="engineering_sre", name="Engineering & SRE Lead", department="engineering_sre")
+    with (
+        patch("app.api.agents.store.get_agent", return_value=agent),
+        patch("app.api.agents.store.add_agent_custom_skill", return_value="skill-1") as mock_add,
+    ):
+        response = client.post(
+            "/api/org/demo/agents/engineering_sre/skills", json={"title": "Escalate P1s", "instructions": "Page on-call."}
+        )
+    assert response.status_code == 200
+    assert response.json()["id"] == "skill-1"
+    mock_add.assert_called_once_with("demo", "engineering_sre", "Escalate P1s", "Page on-call.")
+
+
+def test_delete_agent_skill_calls_store():
+    with patch("app.api.agents.store.delete_agent_custom_skill") as mock_delete:
+        response = client.delete("/api/org/demo/agents/engineering_sre/skills/skill-1")
+    assert response.status_code == 200
+    mock_delete.assert_called_once_with("demo", "engineering_sre", "skill-1")
+
+
 def test_update_settings_accepts_valid_limit():
     with (
         patch("app.api.org.store.update_org_settings") as mock_update,

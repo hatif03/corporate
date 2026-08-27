@@ -15,6 +15,11 @@ class UpdatePersonaRequest(BaseModel):
     accent_color: str | None = None
 
 
+class AddSkillRequest(BaseModel):
+    title: str
+    instructions: str
+
+
 @router.post("/{agent_id}/pause")
 async def pause(org_id: str, agent_id: str) -> dict:
     if store.get_agent(org_id, agent_id) is None:
@@ -43,3 +48,24 @@ async def update_persona(org_id: str, agent_id: str, body: UpdatePersonaRequest)
         store.update_agent_persona(org_id, agent_id, **fields)
     updated = store.get_agent(org_id, agent_id)
     return updated.model_dump(mode="json", by_alias=True)
+
+
+@router.get("/{agent_id}/skills")
+async def list_skills(org_id: str, agent_id: str) -> list[dict]:
+    return store.list_agent_custom_skills(org_id, agent_id)
+
+
+@router.post("/{agent_id}/skills")
+async def add_skill(org_id: str, agent_id: str, body: AddSkillRequest) -> dict:
+    """Org-added guidance for this one agent — see
+    shared/custom_skills.py for how it reaches the agent's actual turns."""
+    if store.get_agent(org_id, agent_id) is None:
+        raise HTTPException(status_code=404, detail="agent not found")
+    skill_id = store.add_agent_custom_skill(org_id, agent_id, body.title, body.instructions)
+    return {"id": skill_id, "title": body.title, "instructions": body.instructions}
+
+
+@router.delete("/{agent_id}/skills/{skill_id}")
+async def delete_skill(org_id: str, agent_id: str, skill_id: str) -> dict:
+    store.delete_agent_custom_skill(org_id, agent_id, skill_id)
+    return {"deleted": True}

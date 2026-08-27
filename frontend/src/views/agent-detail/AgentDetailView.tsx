@@ -2,27 +2,107 @@ import { useEffect, useState } from 'react'
 import { Icon } from '../../components/Icon'
 import { PixelBadge } from '../../components/PixelBadge'
 import { EditAgentModal } from '../../components/EditAgentModal'
-import { pauseAgent, resumeAgent, watchMessages, type MessageEntry } from '../../lib/platformClient'
+import {
+  addAgentSkill,
+  deleteAgentSkill,
+  listAgentSkills,
+  pauseAgent,
+  resumeAgent,
+  watchMessages,
+  type AgentCustomSkill,
+  type MessageEntry,
+} from '../../lib/platformClient'
 import { SKILLS_BY_DEPARTMENT } from '../../lib/skills'
 import { TerminalView } from '../terminal/TerminalView'
 import type { Agent } from '../../lib/types'
 
 type DetailTab = 'terminal' | 'messages' | 'skills'
 
-function AgentSkills({ agent }: { agent: Agent }) {
-  const skills = SKILLS_BY_DEPARTMENT[agent.department] ?? []
+function AgentSkills({ orgId, agent }: { orgId: string; agent: Agent }) {
+  const builtIn = SKILLS_BY_DEPARTMENT[agent.department] ?? []
+  const [custom, setCustom] = useState<AgentCustomSkill[]>([])
+  const [title, setTitle] = useState('')
+  const [instructions, setInstructions] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function refresh() {
+    setCustom(await listAgentSkills(orgId, agent.id))
+  }
+
+  useEffect(() => {
+    void refresh()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId, agent.id])
+
+  async function save() {
+    setSaving(true)
+    try {
+      await addAgentSkill(orgId, agent.id, title.trim(), instructions.trim())
+      setTitle('')
+      setInstructions('')
+      await refresh()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function remove(skillId: string) {
+    await deleteAgentSkill(orgId, agent.id, skillId)
+    await refresh()
+  }
+
   return (
-    <div className="corp-panel">
-      {skills.length === 0 && <p className="corp-text-muted">No curated skill excerpts for this department yet — see /THIRD_PARTY_SKILLS.md.</p>}
-      {skills.map((s) => (
-        <div key={`${s.stage}-${s.skill}`} className="corp-divider-row" style={{ minWidth: 0 }}>
-          <strong>{s.stage}</strong>
-          <div style={{ fontSize: '0.9rem', overflowWrap: 'anywhere' }}>
-            adapted from <em>{s.skill}</em> by {s.author}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="corp-panel">
+        <h4 style={{ marginTop: 0 }}>Built-in</h4>
+        {builtIn.length === 0 && <p className="corp-text-muted">No curated skill excerpts for this department yet — see /THIRD_PARTY_SKILLS.md.</p>}
+        {builtIn.map((s) => (
+          <div key={`${s.stage}-${s.skill}`} className="corp-divider-row" style={{ minWidth: 0 }}>
+            <strong>{s.stage}</strong>
+            <div style={{ fontSize: '0.9rem', overflowWrap: 'anywhere' }}>
+              {s.author ? (
+                <>
+                  adapted from <em>{s.skill}</em> by {s.author}
+                </>
+              ) : (
+                <>
+                  house skill: <em>{s.skill}</em>
+                </>
+              )}
+            </div>
+            {s.source && <div className="corp-text-muted" style={{ fontSize: '0.8rem', overflowWrap: 'anywhere' }}>{s.source}</div>}
           </div>
-          <div className="corp-text-muted" style={{ fontSize: '0.8rem', overflowWrap: 'anywhere' }}>{s.source}</div>
+        ))}
+      </div>
+
+      <div className="corp-panel">
+        <h4 style={{ marginTop: 0 }}>Custom, added by your org</h4>
+        {custom.length === 0 && <p className="corp-text-muted">No custom skills added yet.</p>}
+        {custom.map((s) => (
+          <div key={s.id} className="corp-divider-row" style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+            <div style={{ minWidth: 0 }}>
+              <strong>{s.title}</strong>
+              <div style={{ fontSize: '0.9rem', overflowWrap: 'anywhere' }}>{s.instructions}</div>
+            </div>
+            <button className="corp-button" title="Delete" onClick={() => remove(s.id)} style={{ flexShrink: 0 }}>
+              <Icon name="trash" />
+            </button>
+          </div>
+        ))}
+
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <input placeholder="Skill title (e.g. 'Always escalate P1s')" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <textarea
+            rows={3}
+            placeholder="Instructions this agent should follow in addition to its normal job"
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+          />
+          <button className="corp-button" onClick={save} disabled={saving || !title.trim() || !instructions.trim()}>
+            {saving ? 'Adding…' : 'Add skill'}
+          </button>
         </div>
-      ))}
+      </div>
     </div>
   )
 }
@@ -107,7 +187,7 @@ export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent 
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {tab === 'terminal' && <TerminalView orgId={orgId} agentId={agent.id} />}
         {tab === 'messages' && <AgentMessages orgId={orgId} agent={agent} />}
-        {tab === 'skills' && <AgentSkills agent={agent} />}
+        {tab === 'skills' && <AgentSkills orgId={orgId} agent={agent} />}
       </div>
 
       {editing && <EditAgentModal orgId={orgId} agent={agent} onClose={() => setEditing(false)} onSaved={() => {}} />}

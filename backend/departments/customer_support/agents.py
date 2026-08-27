@@ -16,6 +16,7 @@ from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
 from departments.customer_support.knowledge_base import DEFAULT_KB_NOTE, KNOWLEDGE_BASE
 from departments.customer_support.schemas import DraftResponse, IntentClassification
+from shared.custom_skills import with_custom_guidance
 from shared.verification import ground_quote
 
 DEPARTMENT_ID = "customer_support"
@@ -54,7 +55,8 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
     # Stage 1 is the only one that sees a vision attachment (e.g. a
     # screenshot of the issue a customer sent in).
     classification_text = await run_agent_turn(
-        intent_agents[tier], _session_service, org_id, DEPARTMENT_ID, task.description, attachment=task.attachment
+        intent_agents[tier], _session_service, org_id, DEPARTMENT_ID,
+        with_custom_guidance(org_id, DEPARTMENT_ID, task.description), attachment=task.attachment
     )
     classification = IntentClassification(**_extract_json(classification_text))
 

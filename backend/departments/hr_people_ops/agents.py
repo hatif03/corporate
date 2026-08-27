@@ -17,6 +17,7 @@ from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
 from departments.hr_people_ops.handbook import HR_HANDBOOK
 from departments.hr_people_ops.schemas import HandbookAnswer, RequestClassification
+from shared.custom_skills import with_custom_guidance
 from shared.privacy_pipeline import redact
 from shared.verification import ground_quote
 
@@ -56,7 +57,8 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
     redaction = redact(task.description)
 
     classification_text = await run_agent_turn(
-        intake_agents[tier], _session_service, org_id, DEPARTMENT_ID, redaction.redacted_text,
+        intake_agents[tier], _session_service, org_id, DEPARTMENT_ID,
+        with_custom_guidance(org_id, DEPARTMENT_ID, redaction.redacted_text),
         attachment=task.attachment,
     )
     classification = RequestClassification(**_extract_json(classification_text))

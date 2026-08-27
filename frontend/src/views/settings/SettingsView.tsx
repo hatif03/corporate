@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Icon } from '../../components/Icon'
+import { Icon, type IconName } from '../../components/Icon'
+import { getIdToken } from '../../lib/authClient'
 import {
   createIntegration,
   getIntegrationCatalog,
@@ -14,6 +15,31 @@ import {
   type IntegrationTemplate,
 } from '../../lib/platformClient'
 import type { Agent } from '../../lib/types'
+
+const CATALOG_ICON: Record<string, IconName> = {
+  slack: 'slack',
+  jira: 'jira',
+  github: 'git',
+  stripe: 'stripe',
+  notion: 'notion',
+  hubspot: 'hubspot',
+}
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000'
+
+// Kinds with a real "Connect with X" OAuth flow (app/api/oauth.py) — every
+// other kind still uses the paste-a-token form below. Requires the org's
+// deployment to have the provider's OAuth app already registered
+// (docs/adr/0018-oauth-connect-flow.md) — the button always renders, since
+// there's no cheap way to know that from the frontend, but the flow fails
+// with a clear error if it isn't configured yet.
+const OAUTH_KINDS = new Set(['slack', 'github', 'notion'])
+
+async function startOAuth(orgId: string, kind: string) {
+  const token = await getIdToken()
+  if (!token) return
+  window.location.href = `${BACKEND_URL}/api/org/${orgId}/integrations/${kind}/oauth/start?token=${encodeURIComponent(token)}`
+}
 
 function ConnectForm({ orgId, kind, template, onConnected }: { orgId: string; kind: string; template: IntegrationTemplate; onConnected: () => void }) {
   const [secretValue, setSecretValue] = useState('')
@@ -34,6 +60,16 @@ function ConnectForm({ orgId, kind, template, onConnected }: { orgId: string; ki
     } finally {
       setBusy(false)
     }
+  }
+
+  if (OAUTH_KINDS.has(kind)) {
+    return (
+      <div style={{ marginTop: 8 }}>
+        <button className="corp-button" onClick={() => startOAuth(orgId, kind)}>
+          Connect with {kind.charAt(0).toUpperCase() + kind.slice(1)}
+        </button>
+      </div>
+    )
   }
 
   return (
@@ -110,7 +146,10 @@ function ConnectedApps({ orgId, agents }: { orgId: string; agents: Agent[] }) {
           return (
             <div key={kind} className="corp-divider-row">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <strong style={{ textTransform: 'capitalize' }}>{kind}</strong>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  {CATALOG_ICON[kind] && <Icon name={CATALOG_ICON[kind]} />}
+                  <strong style={{ textTransform: 'capitalize' }}>{kind}</strong>
+                </span>
                 {integ ? (
                   <span className="corp-badge" style={{ background: integ.enabled ? 'var(--corp-mint-light)' : undefined }}>
                     {integ.enabled ? 'connected' : 'disabled'}

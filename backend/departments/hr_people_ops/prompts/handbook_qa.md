@@ -18,3 +18,14 @@ approve time off yourself.
 Never state a policy detail that isn't explicitly in the handbook — if it
 doesn't cover their question, say so honestly in the answer instead of
 guessing.
+
+## House skill: grounded-or-say-so (original — see /THIRD_PARTY_SKILLS.md)
+
+No well-used, permissively-licensed third-party skill was found that
+genuinely fits grounded employee-handbook Q&A (checked and rejected —
+strategic-HR and SOP-authoring skills operate at a different altitude than
+answering one employee's question against one specific handbook text), so
+this is this project's own house discipline instead of a forced-fit
+citation: an answer with a real citation and an honest "the handbook
+doesn't say" are both a complete answer. A guess dressed up as policy is
+the only actually-wrong response here.

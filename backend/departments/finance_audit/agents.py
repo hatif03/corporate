@@ -15,6 +15,7 @@ from departments.base import audited_task
 from departments.finance_audit import signals
 from departments.finance_audit.aspects import ASPECTS
 from departments.finance_audit.schemas import FraudSignals, InvoiceFields
+from shared.custom_skills import with_custom_guidance
 from shared.verification import vote_aspects
 
 DEPARTMENT_ID = "finance_audit"
@@ -61,7 +62,8 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
     # attachment (an invoice image), consistent with ADR-0006's fraud-stage
     # isolation: the fraud stage below still only ever sees signals JSON.
     doc_intel_text = await run_agent_turn(
-        doc_intel_agents[tier], _session_service, org_id, DEPARTMENT_ID, task.description, attachment=task.attachment
+        doc_intel_agents[tier], _session_service, org_id, DEPARTMENT_ID,
+        with_custom_guidance(org_id, DEPARTMENT_ID, task.description), attachment=task.attachment
     )
     invoice = InvoiceFields(**_extract_json(doc_intel_text))
 

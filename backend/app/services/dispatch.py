@@ -13,6 +13,7 @@ from app.models import Act, Message
 from app.services import store
 from app.services.session_service import FirestoreSessionService
 from departments import get_department
+from shared.custom_skills import with_custom_guidance
 
 _session_service = FirestoreSessionService()
 _ceo_agent = build_ceo_agent()
@@ -58,7 +59,9 @@ async def handle_agent_turn(org_id: str, agent_id: str, message: Message) -> Non
                 # without routing the blob through the LLM's own tool-call
                 # arguments. See ADR-0013.
                 store.set_ceo_pending_attachment(org_id, message.attachment)
-            await run_agent_turn(_ceo_agent, _session_service, org_id, "ceo", prompt, attachment=message.attachment)
+            await run_agent_turn(
+                _ceo_agent, _session_service, org_id, "ceo", with_custom_guidance(org_id, "ceo", prompt), attachment=message.attachment
+            )
             return
 
         store.log_activity(

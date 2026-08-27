@@ -153,7 +153,12 @@ async def call_integration(
     headers: dict[str, str] = {}
     if integration.auth_type != IntegrationAuthType.NONE and integration.secret_ref:
         secret_value = _resolve_secret(integration.secret_ref)
-        if integration.auth_type == IntegrationAuthType.BEARER:
+        # OAUTH2 tokens (from the Connect-with-X flow, app/api/oauth.py) are
+        # sent the same way a manually-pasted bearer token is — every
+        # provider we support OAuth for (Slack, GitHub, Notion) expects
+        # `Authorization: Bearer <token>` for its REST API regardless of how
+        # the token was obtained.
+        if integration.auth_type in (IntegrationAuthType.BEARER, IntegrationAuthType.OAUTH2):
             headers["Authorization"] = f"Bearer {secret_value}"
         elif integration.auth_type == IntegrationAuthType.HEADER:
             headers[integration.auth_header or "Authorization"] = secret_value

@@ -17,6 +17,7 @@ from departments.base import audited_task
 from departments.engineering_sre.aspects import ASPECTS
 from departments.engineering_sre.schemas import CascadePrediction, TriageResult
 from departments.engineering_sre.tools import create_jira_ticket, notify_slack_channel
+from shared.custom_skills import with_custom_guidance
 from shared.privacy_pipeline import redact
 from shared.verification import vote_aspects
 
@@ -77,7 +78,8 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
     # Stage 1: triage — the only stage that sees a vision attachment
     # (e.g. a screenshot of the error/dashboard).
     triage_text = await run_agent_turn(
-        triage_agents[tier], _session_service, org_id, DEPARTMENT_ID, redaction.redacted_text, attachment=task.attachment
+        triage_agents[tier], _session_service, org_id, DEPARTMENT_ID,
+        with_custom_guidance(org_id, DEPARTMENT_ID, redaction.redacted_text), attachment=task.attachment
     )
     triage = TriageResult(**_extract_json(triage_text))
 

@@ -22,7 +22,7 @@ export interface Point {
 
 const ACTIVE_STATUSES: AgentStatus[] = ['thinking', 'working', 'typing', 'looping', 'compacting']
 
-const AGENT_STRIDE = 24
+const AGENT_STRIDE = 14
 
 export function deskAnchorFor(zone: DepartmentZone, indexInZone = 0): Point {
   return { x: zone.x + zone.width * 0.6 + indexInZone * AGENT_STRIDE, y: zone.y + zone.height * 0.55 }
@@ -62,7 +62,7 @@ export function hashId(id: string): number {
   return Math.abs(hash)
 }
 
-const WANDER_RADIUS = 10 // px
+const WANDER_RADIUS = 7 // px
 const WANDER_SPEED = 0.012 // radians/frame at 60fps — a full loop every ~9s
 
 /** A small, smooth, per-agent drift around an idle anchor so agents milling

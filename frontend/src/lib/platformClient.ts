@@ -273,6 +273,25 @@ export function updateAgentPersona(orgId: string, agentId: string, update: Agent
   return patch(`/api/org/${orgId}/agents/${agentId}`, update) as Promise<Agent>
 }
 
+export interface AgentCustomSkill {
+  id: string
+  title: string
+  instructions: string
+  createdAt: string
+}
+
+export function listAgentSkills(orgId: string, agentId: string): Promise<AgentCustomSkill[]> {
+  return get(`/api/org/${orgId}/agents/${agentId}/skills`) as Promise<AgentCustomSkill[]>
+}
+
+export function addAgentSkill(orgId: string, agentId: string, title: string, instructions: string): Promise<AgentCustomSkill> {
+  return post(`/api/org/${orgId}/agents/${agentId}/skills`, { title, instructions }) as Promise<AgentCustomSkill>
+}
+
+export function deleteAgentSkill(orgId: string, agentId: string, skillId: string): Promise<unknown> {
+  return del(`/api/org/${orgId}/agents/${agentId}/skills/${skillId}`)
+}
+
 // ---- knowledge base (per-department org-uploaded documents) ----
 
 export interface KnowledgeDoc {

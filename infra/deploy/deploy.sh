@@ -11,6 +11,17 @@ set -euo pipefail
 PROJECT_ID="${PROJECT_ID:?set PROJECT_ID}"
 REGION="${REGION:-us-central1}"
 SA_EMAIL="corporate-backend-sa@${PROJECT_ID}.iam.gserviceaccount.com"
+
+# OAuth "Connect with X" (ADR-0018) — optional, all default empty so a
+# deploy with none of these set just leaves those Connect buttons
+# non-functional rather than failing. Sourced here (not left to a one-off
+# `gcloud run services update`) because the deploy below uses
+# --set-env-vars, which REPLACES the whole env-var set on every re-run —
+# anything set out-of-band would get silently wiped on the next deploy.
+SLACK_OAUTH_CLIENT_ID="${SLACK_OAUTH_CLIENT_ID:-}"
+GITHUB_OAUTH_CLIENT_ID="${GITHUB_OAUTH_CLIENT_ID:-}"
+NOTION_OAUTH_CLIENT_ID="${NOTION_OAUTH_CLIENT_ID:-}"
+OAUTH_STATE_SECRET="${OAUTH_STATE_SECRET:-}"
 BACKEND_SERVICE="corporate-backend"
 A2A_SERVICE="corporate-a2a-sales"
 
@@ -42,7 +53,7 @@ gcloud run deploy "${BACKEND_SERVICE}" \
   --project="${PROJECT_ID}" \
   --allow-unauthenticated \
   --service-account="${SA_EMAIL}" \
-  --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_GENAI_USE_VERTEXAI=1,VERTEX_LOCATION=${REGION},CORPORATE_ATTACHMENTS_BUCKET=${PROJECT_ID}-attachments"
+  --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_GENAI_USE_VERTEXAI=1,VERTEX_LOCATION=${REGION},CORPORATE_ATTACHMENTS_BUCKET=${PROJECT_ID}-attachments,SLACK_OAUTH_CLIENT_ID=${SLACK_OAUTH_CLIENT_ID},GITHUB_OAUTH_CLIENT_ID=${GITHUB_OAUTH_CLIENT_ID},NOTION_OAUTH_CLIENT_ID=${NOTION_OAUTH_CLIENT_ID},OAUTH_STATE_SECRET=${OAUTH_STATE_SECRET}"
 
 BACKEND_URL="$(gcloud run services describe "${BACKEND_SERVICE}" --region="${REGION}" --project="${PROJECT_ID}" --format='value(status.url)')"
 echo "backend URL: ${BACKEND_URL}"

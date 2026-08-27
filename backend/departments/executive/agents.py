@@ -22,6 +22,7 @@ from app.models import Task, TaskResult
 from app.services import store
 from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
+from shared.custom_skills import with_custom_guidance
 
 DEPARTMENT_ID = "executive"
 
@@ -69,7 +70,8 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
     # has nowhere sensible to land.
     snapshot = _company_snapshot(org_id)
     digest = await run_agent_turn(
-        digest_agents[tier], _session_service, org_id, DEPARTMENT_ID, json.dumps(snapshot, default=dict)
+        digest_agents[tier], _session_service, org_id, DEPARTMENT_ID,
+        with_custom_guidance(org_id, DEPARTMENT_ID, json.dumps(snapshot, default=dict))
     )
     announcement = await run_agent_turn(
         announcement_agents[tier], _session_service, org_id, DEPARTMENT_ID, digest

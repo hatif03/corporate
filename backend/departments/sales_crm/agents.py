@@ -17,6 +17,7 @@ from app.models import Task, TaskResult
 from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
 from departments.sales_crm.tools import pricing_guardrail
+from shared.custom_skills import with_custom_guidance
 
 DEPARTMENT_ID = "sales_crm"
 
@@ -65,7 +66,8 @@ _session_service = FirestoreSessionService()
 async def on_task_received(org_id: str, task: Task) -> TaskResult:
     tier = task.model_tier  # ADR-0013: the CEO picks flash/pro at create_task time
     outreach_draft = await run_agent_turn(
-        sales_pipeline_by_tier[tier], _session_service, org_id, DEPARTMENT_ID, task.description,
+        sales_pipeline_by_tier[tier], _session_service, org_id, DEPARTMENT_ID,
+        with_custom_guidance(org_id, DEPARTMENT_ID, task.description),
         attachment=task.attachment,
     )
     return TaskResult(success=True, summary=outreach_draft, data={"draft": outreach_draft}, needs_human=False)

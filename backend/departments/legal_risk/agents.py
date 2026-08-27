@@ -35,6 +35,7 @@ from app.models import Task, TaskResult
 from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
 from departments.legal_risk.schemas import Finding, GroundedConflict
+from shared.custom_skills import with_custom_guidance
 from shared.verification import ground_quote
 
 DEPARTMENT_ID = "legal_risk"
@@ -78,13 +79,14 @@ def _split_statement_and_context(description: str) -> tuple[str, str]:
 async def on_task_received(org_id: str, task: Task) -> TaskResult:
     tier = task.model_tier  # ADR-0013: the CEO picks flash/pro at create_task time
     statement, context_text = _split_statement_and_context(task.description)
+    judge_input = with_custom_guidance(org_id, DEPARTMENT_ID, task.description)
 
     # No attachment wiring here (ADR-0013): 5 parallel text-only judges over
     # STATEMENT/CONTEXT, not a sequential "first stage sees the image" shape
     # — this department's whole job is text conflict-detection, so a vision
     # attachment has no natural place to land.
     async def run_judge(lens: str) -> Finding:
-        raw = await run_agent_turn(_judges[lens][tier], _session_service, org_id, DEPARTMENT_ID, task.description)
+        raw = await run_agent_turn(_judges[lens][tier], _session_service, org_id, DEPARTMENT_ID, judge_input)
         data = _extract_json(raw)
         data["lens"] = lens
         return Finding(**data)

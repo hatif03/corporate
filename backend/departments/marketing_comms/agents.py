@@ -13,6 +13,7 @@ from app.models import Task, TaskResult
 from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
 from departments.marketing_comms.aspects import ASPECTS
+from shared.custom_skills import with_custom_guidance
 from shared.verification import vote_aspects
 
 DEPARTMENT_ID = "marketing_comms"
@@ -41,7 +42,8 @@ _session_service = FirestoreSessionService()
 async def on_task_received(org_id: str, task: Task) -> TaskResult:
     tier = task.model_tier  # ADR-0013: the CEO picks flash/pro at create_task time
     brief = await run_agent_turn(
-        brief_agents[tier], _session_service, org_id, DEPARTMENT_ID, task.description, attachment=task.attachment
+        brief_agents[tier], _session_service, org_id, DEPARTMENT_ID,
+        with_custom_guidance(org_id, DEPARTMENT_ID, task.description), attachment=task.attachment
     )
     copy = await run_agent_turn(copy_agents[tier], _session_service, org_id, DEPARTMENT_ID, brief)
 

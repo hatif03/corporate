@@ -23,10 +23,10 @@ export interface DepartmentZone {
   kind: 'department' | 'boardroom' | 'breakroom'
 }
 
-const ROOM_W = 420
-const ROOM_H = 280
-const GAP = 28 // open-plan breathing room between clusters — no wall/door tile here
-const MARGIN = 40
+const ROOM_W = 300
+const ROOM_H = 200
+const GAP = 16 // open-plan breathing room between clusters — no wall/door tile here
+const MARGIN = 32
 const COL_X = [MARGIN, MARGIN + ROOM_W + GAP, MARGIN + 2 * (ROOM_W + GAP)]
 const ROW_Y = [MARGIN, MARGIN + ROOM_H + GAP, MARGIN + 2 * (ROOM_H + GAP), MARGIN + 3 * (ROOM_H + GAP)]
 

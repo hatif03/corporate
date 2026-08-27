@@ -18,6 +18,7 @@ from app.services import store
 from app.services.session_service import FirestoreSessionService
 from departments.base import audited_task
 from departments.product_analytics.schemas import ChartSpec
+from shared.custom_skills import with_custom_guidance
 
 DEPARTMENT_ID = "product_analytics"
 
@@ -63,7 +64,9 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
     chart = _build_chart_spec(counts)
 
     prompt = json.dumps({"question": task.description, "counts": counts})
-    answer = await run_agent_turn(metrics_agents[tier], _session_service, org_id, DEPARTMENT_ID, prompt)
+    answer = await run_agent_turn(
+        metrics_agents[tier], _session_service, org_id, DEPARTMENT_ID, with_custom_guidance(org_id, DEPARTMENT_ID, prompt)
+    )
 
     return TaskResult(
         success=True,

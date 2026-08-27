@@ -15,12 +15,32 @@ the original for the full skill.
 | `marketing_comms` / copy_drafter | `copywriting` | Corey Haines | https://github.com/coreyhaines31/marketingskills |
 | `sales_crm` / lead_qualifier | `revops` | Corey Haines | https://github.com/coreyhaines31/marketingskills |
 | `sales_crm` / outreach_drafter | `sales-enablement` | Corey Haines | https://github.com/coreyhaines31/marketingskills |
+| `legal_risk` / legal_compliance | `general-counsel-advisor` | alirezarezvani | https://github.com/alirezarezvani/claude-skills |
+| `executive` / cross_department_digest | `board-deck-builder` | alirezarezvani | https://github.com/alirezarezvani/claude-skills |
+| `executive` / announcement_drafter | `internal-comms` | alirezarezvani | https://github.com/alirezarezvani/claude-skills |
 
 Considered and dropped (see ADR-0014 for why): `security-guidance` (a
 Claude-Code editor hook, not domain knowledge an LLM turn can act on),
 `saas-metrics-coach` (ARR/MRR/churn coaching doesn't apply to per-invoice
 review), `emails` (multi-email sequence design doesn't apply to
 `copy_drafter`, which drafts one piece of copy per task).
+
+## Departments with no genuine third-party fit — original house skills instead
+
+A later research pass looked for real, well-used, permissively-licensed
+skills for the remaining 3 departments and found none that genuinely fit
+(not just name-matched) — every candidate assumed a domain (strategic HR,
+CCO-level retention, product-growth/experiment analytics) these
+departments' actual narrow tasks don't have. Per this project's own
+"don't force fits" discipline, each got a short **original** house-skill
+note instead (see each prompt's own "House skill" section for the full
+text and reasoning) — not attributed to any external source:
+
+| Department stage | House skill |
+|---|---|
+| `hr_people_ops` / handbook_qa | grounded-or-say-so |
+| `customer_support` / response_drafter | cite-or-escalate |
+| `product_analytics` / metrics_analyst | never-invent-a-number |
 
 ## Frontend design system and UI
 

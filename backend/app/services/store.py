@@ -91,6 +91,25 @@ def update_agent_persona(org_id: str, agent_id: str, **fields: Any) -> None:
     org_doc(org_id, "agents", agent_id).update(camel_fields)
 
 
+# ---- per-agent custom skills (orgs/{orgId}/agents/{agentId}/custom_skills) --
+
+
+def add_agent_custom_skill(org_id: str, agent_id: str, title: str, instructions: str) -> str:
+    _, doc_ref = org_doc(org_id, "agents", agent_id).collection("custom_skills").add(
+        {"title": title, "instructions": instructions, "createdAt": _now()}
+    )
+    return doc_ref.id
+
+
+def list_agent_custom_skills(org_id: str, agent_id: str) -> list[dict]:
+    query = org_doc(org_id, "agents", agent_id).collection("custom_skills").order_by("createdAt", direction="DESCENDING")
+    return [{"id": d.id, **d.to_dict()} for d in query.stream()]
+
+
+def delete_agent_custom_skill(org_id: str, agent_id: str, skill_id: str) -> None:
+    org_doc(org_id, "agents", agent_id).collection("custom_skills").document(skill_id).delete()
+
+
 def append_trace(org_id: str, agent_id: str, line: str, kind: str = "tool") -> None:
     org_doc(org_id, "agents", agent_id).collection("trace").add(
         {"ts": _now(), "line": line, "kind": kind}

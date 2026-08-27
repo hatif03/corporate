@@ -50,6 +50,14 @@ export type IconName =
   | 'mail'
   | 'trash'
   | 'chevron-right'
+  // Integration-catalog glyphs — original marks (not brand-logo
+  // reproductions, same reasoning as not reproducing the reference app's
+  // own branding) representing what each service does, in the same style.
+  | 'slack'
+  | 'jira'
+  | 'stripe'
+  | 'notion'
+  | 'hubspot'
 
 interface IconDef {
   ink: string // primary color path d
@@ -199,6 +207,26 @@ const paths: Record<IconName, IconDef> = {
   moon: {
     accentColor: 'var(--corp-lilac)',
     ink: 'M9 1h2v1h1v1h1v2h1v4h-1v2h-1v1h-1v1H9v1H7v-1H6v-1H9v-1h1v-1h1v-1h1V6h-1V5h-1V4H9V3H7V2h2z',
+  },
+  slack: {
+    accentColor: 'var(--corp-lilac)',
+    ink: 'M2 2h12v8H6l-3 3v-3H2z',
+  },
+  jira: {
+    accentColor: 'var(--corp-sky)',
+    ink: 'M1 2h4v12H1zM6 2h4v8H6zM11 2h4v5h-4z',
+  },
+  stripe: {
+    accentColor: 'var(--corp-mint)',
+    ink: 'M1 3h14v10H1V3zm1 1v2h12V4H2zm0 4v4h12V8H2z',
+  },
+  notion: {
+    accentColor: 'var(--corp-ink-300)',
+    ink: 'M3 1h7l3 3v11H3V1zm1 1v11h8V5h-4V2H4zM5 7h6v1H5zM5 9h6v1H5zM5 11h4v1H5z',
+  },
+  hubspot: {
+    accentColor: 'var(--corp-peach)',
+    ink: 'M2 6h3v4H2zM5 4l6-3v14l-6-3z',
   },
   crown: {
     accentColor: 'var(--corp-lemon)',

@@ -56,6 +56,17 @@ def _default_no_op_trigger_history():
 
 
 @pytest.fixture(autouse=True)
+def _default_no_custom_skills():
+    """with_custom_guidance (shared/custom_skills.py) calls
+    store.list_agent_custom_skills on every department/CEO turn now — real
+    network call otherwise. Empty (no custom skills added yet) is the safe
+    default, matching a fresh org's actual behavior. Tests that exercise
+    real custom-skill injection override this locally."""
+    with patch("app.services.store.list_agent_custom_skills", return_value=[]):
+        yield
+
+
+@pytest.fixture(autouse=True)
 def _bypass_org_auth():
     """API tests exercise route logic, not the auth layer itself (that has
     its own dedicated tests/test_auth.py) — override the require_org_member

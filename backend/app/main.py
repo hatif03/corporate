@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import access_requests, agents, audit, integrations, internal, knowledge_base, memory, org, triggers, voice, workers
+from app.api import access_requests, agents, audit, integrations, internal, knowledge_base, memory, oauth, org, triggers, voice, workers
 from app.config import settings
 from app.services.auth import require_internal_oidc, require_org_member
 
@@ -72,6 +72,14 @@ app.include_router(knowledge_base.router, dependencies=_org_scoped_dependency)
 # check would always fail here. voice.py authenticates itself from a
 # query-param token instead — see that module's docstring.
 app.include_router(voice.router)
+
+# Not wired with _org_scoped_dependency either: /oauth/start is a plain
+# browser navigation (same header limitation as the WebSocket above,
+# authenticates itself via ?token=), and /oauth/{kind}/callback is called
+# directly by the OAuth provider, which carries no Firebase token at all —
+# its own signed `state` param is the real access control. See
+# app/api/oauth.py's module docstring.
+app.include_router(oauth.router)
 
 
 # Not /healthz: on the shared *.run.app domain, Google's own front end

@@ -40,8 +40,8 @@ const STATUS_DOT_COLOR: Record<string, number> = {
 
 const ACTIVE_STATUSES: AgentStatus[] = ['thinking', 'working', 'typing', 'looping', 'compacting']
 
-const MOVE_SPEED = 1.6 // px/frame at 60fps
-const WALK_PHASE_TICKS = 10 // how often to advance one step of the walk cycle
+const MOVE_SPEED = 1.1 // px/frame at 60fps — tuned for the office's tighter room scale
+const WALK_PHASE_TICKS = 8 // how often to advance one step of the walk cycle
 // Stand -> step -> stand -> step, not a continuous A/B alternation — matches
 // the reference app's 4-phase walk cycle (see /THIRD_PARTY_SKILLS.md),
 // reusing our idle/walkA/walkB frames in place of its 3-row directional set.
@@ -232,7 +232,7 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
       // the "cluttered" look. Scaling the tile up reads as a calm textured
       // surface instead of a busy checkerboard, at the same real art.
       const baseFloor = new TilingSprite({ texture: texturesRef.current.get(FLOOR_TILE), width: WORLD_WIDTH, height: WORLD_HEIGHT })
-      baseFloor.tileScale.set(4)
+      baseFloor.tileScale.set(6)
       baseFloor.tint = 0xfaf3e2
       world.addChild(baseFloor)
 
