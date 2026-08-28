@@ -1,0 +1,51 @@
+# Building Corporate, part 4: the final 72 hours
+
+*Part 4 of a four-part series on building Corporate, and the last one. Parts 1 through 3 covered the shape of the system, the department/verification patterns, and the capability expansion with its research digressions. This part covers what happened three days out from the hackathon deadline, when a routine "get ready to submit" pass turned up one hard eligibility problem and one real, previously-unnoticed production bug — and what we did about both.*
+
+## The ask that started it
+
+With the app deployed and working, the next request was broad on purpose: show more of what the agents are actually doing on the frontend, show the health of the deployed services, do a dedicated error-handling audit, build a real landing page, and — the part that mattered most in hindsight — "run a complete run on our app making sure it is used like it's intended to use in production. Find any errors and problems that arrive in the working. Find if all services are being used as expected or the AI agents are ignoring something they're meant to use."
+
+That last sentence is doing the real work. It's not "does the demo look good" — it's "is anything actually broken that we haven't noticed because nobody's looked."
+
+The first pass (landing page, error handling everywhere, service-health indicators, richer data on every view) went fine and shipped cleanly. It's the second pass — a fuller production-readiness audit, three days before the deadline — where things got interesting.
+
+## Finding one: a hard eligibility gap, found by re-reading the actual rules
+
+We fetched the hackathon's own rules page directly rather than working from memory of an earlier read. Buried in the required-technologies section: **"Gemini 3.5 or newer,"** for every track, no exceptions. Corporate's default model configuration was `gemini-2.5-flash` / `gemini-2.5-pro` / `gemini-2.5-flash-lite`. Below the floor, on every single department's reasoning.
+
+This wasn't a "let's polish this eventually" item. It was a hard eligibility gate, three days before submission, on the model every agent in the entire app actually runs on.
+
+We didn't trust documentation to tell us which model IDs would actually work — we'd already been burned once by exactly that with Gemma (part 3). So: a direct `client.models.list()` call against this project's real Vertex AI access, not the Model Garden docs page. That confirmed `gemini-3.5-flash`, `gemini-3.5-flash-lite`, and `gemini-3.1-pro-preview` are genuinely reachable here (Gemini 3.5 Pro has no public model ID anywhere yet — we checked, independent web research at the time agreed). But a direct `generate_content` call to those exact IDs 404'd, at the same `us-central1` region every other model in this project already used successfully.
+
+That could have meant real new plumbing — a second location setting threaded through the agent factory, a config change touching every department. Before writing any of that, we read the actual mechanism: `google.adk.models.google_llm.Gemini.api_client`'s installed source shows it builds its Vertex client with no explicit `project` or `location` passed at all. Those get resolved from environment variables by `google-genai`'s own client — and reading *that* source showed something we didn't expect: when neither an explicit location nor `GOOGLE_CLOUD_LOCATION` is set, it silently defaults to Vertex's `global` endpoint. This project has never set `GOOGLE_CLOUD_LOCATION` — only an unrelated custom-named variable read solely by our own explicit client constructions elsewhere (Veo, Lyria, embeddings, voice). Every ADK-driven Gemini call in this app had already been resolving to `global` by default, the whole time, with nobody having configured it that way on purpose.
+
+We confirmed this with a real end-to-end ADK agent turn — not a raw API call, the actual `Runner.run_async()` path every department uses — against all three candidate models, before changing a single line of production config. All three worked. Zero location-plumbing changes needed. Just the model ID strings.
+
+While re-verifying the voice model against the same live-testing discipline, we found it had quietly gone dead in production, independent of any of this: the previous `gemini-2.0-flash-live-preview-04-09` now 404s. Fixed with the same rigor — a real `client.aio.live.connect()` round trip against the replacement before committing it.
+
+## Finding two: a real production bug, found by auditing observability
+
+Part of the audit was checking whether ephemeral workers' execution was actually visible anywhere in the frontend. Following that thread meant reading `update_agent_status` — the function every single agent turn calls at its very start, via `before_agent_callback` — closely enough to notice it does a Firestore `.update()` call. `.update()` throws `NotFound` if the target document doesn't already exist.
+
+Ephemeral workers (`spawn_worker`, `spawn_worker_and_await`) use their own generated worker ID as their session ID, and the shared ADK callback mechanism treats session ID as agent ID for status/trace purposes. But a worker never gets a real `agents/{id}` document created for it — only registered department agents do, seeded once at startup. Every worker turn's very first action was, structurally, calling `.update()` on a document that had never existed.
+
+We didn't take this on faith from reading the code. We reproduced it live: ran a real `spawn_worker_and_await` call against production Firestore and real Vertex AI, with the old code in place, and got back exactly the `NotFound` error the code read predicted — `404 No document to update: .../orgs/demo/agents/worker-07f9f4e34b`. Every spawned worker had been failing on its first turn, silently, since the feature shipped. The fix landed, we ran it again, and got a real successful reply back. Then we cleaned up the two test worker documents we'd created in the live `demo` org rather than leave test artifacts in production data.
+
+The fix itself is small — a one-line `except NotFound: pass` in the one function every agent-status update already goes through, not a new Firestore document for every ephemeral worker (which would have polluted the persistent-agent roster the office floor actually renders). But finding it required reading a "boring," already-shipped function closely enough to notice what it assumed, rather than trusting that a feature which had been in the codebase for a while must have been exercised and confirmed working by now. It hadn't been — none of the existing tests exercised the real callback path; they all mocked it away.
+
+## What came out of all that: closing the gaps for real
+
+Once those two were fixed, the same audit had already surfaced a ranked list of real observability gaps — backend state that existed but was never rendered anywhere in the UI. We closed all of them, not just the cheap ones:
+
+- **Verification votes, previously computed and thrown away.** `vote_aspects()` had always returned which individual checker passed or failed and why — Finance, Engineering, and Marketing's departments just never persisted it onto the task, only the final boolean. Now every one of those checkers' votes and reasons show up, expandable, on the task itself.
+- **Worker execution trace**, which turned out to already half-exist by accident: the same session-ID-doubles-as-agent-ID mechanism behind the `NotFound` bug above meant a worker's trace subcollection write (a Firestore subcollection `.add()`, which — unlike `.update()` — doesn't require its parent document to exist) had been landing successfully all along. It just had no frontend panel reading it. Now it does, reusing the exact same `watchAgentTrace` function every registered agent's terminal view already used.
+- **A live audit hash-chain status badge**, calling an endpoint that already existed (`/api/org/{orgId}/audit/verify`) but had never been wired to anything but a copy-pasteable curl example in the Commands tab.
+- **A new Board tab**, for the CEO's shared blackboard collection, which had zero frontend surface of any kind before this.
+- Previously invisible fields — which Gemini tier a task ran on, its attachment, its timestamps, an agent's session turn count — surfaced across the views that already had room for them.
+
+## What we'd tell someone starting this project today
+
+Write down why you rejected an alternative, not just what you chose — every one of the twenty ADRs behind this project made a three-day pre-deadline audit tractable instead of terrifying, because we never had to re-derive whether an old decision still held; it was already on record. And verify against the real, live system before you trust anything that reads like a settled fact — a package's own docstring, a docs page, a "verified" code example someone else posted — three separate times this project (Gemma's Model Garden card, this session's Gemini-version gap, a silently-dead voice model) that discipline was the only thing standing between "looks fine" and actually broken.
+
+That's the whole story, as honestly as we can tell it — including the parts we got wrong the first time. Thanks for reading.
