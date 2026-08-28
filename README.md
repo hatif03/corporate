@@ -80,6 +80,18 @@ firebase deploy --only firestore:rules
 firebase deploy --only hosting
 ```
 
+**Gemma/Veo/Lyria (ADR-0019):** all three ride the same Vertex AI project/location/ADC as Gemini — no separate credentials. The one manual one-time step is a Cloud Scheduler job for polling pending Veo video-generation operations (Marketing & Comms), since Veo generation takes minutes and can't be awaited inside a Pub/Sub push handler:
+```bash
+gcloud scheduler jobs create http veo-poll-demo \
+  --schedule="*/2 * * * *" \
+  --uri="${BACKEND_URL}/internal/veo/demo/poll" \
+  --http-method=POST \
+  --oidc-service-account-email="corporate-backend-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --oidc-token-audience="${BACKEND_URL}/internal/veo/demo/poll"
+```
+
+The two default self-check/memory-curation triggers seeded for the CEO (`scripts/seed.py`) need the same kind of job per trigger — see `app/api/triggers.py`'s module docstring.
+
 ## Contributing
 
 Read `/docs/system_prompt.md` before writing code — it's the canonical source of the architectural conventions this project follows (department contract, ADK/Gemini conventions, Firestore/Pub-Sub access rules, secrets policy). `CLAUDE.md` and `.cursor/rules/` both derive from it.
