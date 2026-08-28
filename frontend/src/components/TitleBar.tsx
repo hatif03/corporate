@@ -5,10 +5,49 @@
 // (no OS window chrome to clear on the web) — the one deliberate
 // Electron->web adaptation.
 
+import { useEffect, useState } from 'react'
 import type { User } from 'firebase/auth'
 import { Icon } from './Icon'
 import { VoicePanel } from './VoicePanel'
 import { useAppTheme, toggleAppTheme } from '../lib/theme'
+import { getHealthz } from '../lib/platformClient'
+
+const HEALTH_POLL_MS = 30_000
+
+function ServiceStatusDot() {
+  const [ok, setOk] = useState(true)
+  const [tip, setTip] = useState('Checking service status…')
+
+  useEffect(() => {
+    let cancelled = false
+    async function check() {
+      try {
+        const h = await getHealthz()
+        if (cancelled) return
+        setOk(h.status === 'ok')
+        setTip(`backend: ${h.status} · firestore: ${h.firestore}`)
+      } catch (e) {
+        if (cancelled) return
+        setOk(false)
+        setTip(`backend unreachable: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+    void check()
+    const id = window.setInterval(() => void check(), HEALTH_POLL_MS)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [])
+
+  return (
+    <span
+      className="corp-status-dot corp-status-dot--live corp-tip"
+      data-tip={tip}
+      style={{ background: ok ? 'var(--corp-mint)' : 'var(--corp-coral)' }}
+    />
+  )
+}
 
 function UserAvatar({ user }: { user: User }) {
   if (user.photoURL) {
@@ -81,6 +120,7 @@ export function TitleBar({
       </span>
 
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 'var(--corp-space-2)' }}>
+        <ServiceStatusDot />
         <VoicePanel orgId={orgId} />
         <button className="corp-tip" data-tip={theme === 'dark' ? 'Switch to light' : 'Switch to dark'} style={iconButtonStyle} onClick={() => toggleAppTheme()}>
           <Icon name={theme === 'dark' ? 'moon' : 'sun'} />

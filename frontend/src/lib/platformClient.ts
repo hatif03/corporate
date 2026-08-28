@@ -13,6 +13,23 @@ function orgCollection(orgId: string, name: string) {
   return collection(db, 'orgs', orgId, name)
 }
 
+// Confirmed real gap: every watchX function below passes onSnapshot only a
+// success callback — a dropped listener (permission-denied, quota, network
+// drop after Firestore's own retries give up) previously just stopped
+// calling onChange silently, freezing whatever view it feeds with stale
+// data and no indication anything was wrong. One shared handler here
+// (set once by App.tsx) rather than threading an onError param through
+// every watchX call site across every view that uses one.
+let connectionErrorHandler: ((err: Error) => void) | null = null
+
+export function setConnectionErrorHandler(handler: (err: Error) => void): void {
+  connectionErrorHandler = handler
+}
+
+function reportConnectionError(err: Error): void {
+  connectionErrorHandler?.(err)
+}
+
 // Every doc read via onSnapshot below spreads `...d.data()` verbatim, so a
 // backend-written Python datetime (app/services/store.py's `_now()`) comes
 // back as a real Firestore Timestamp object at runtime — despite several
@@ -33,16 +50,20 @@ export function toDisplayDate(value: unknown): Date | null {
 }
 
 export function watchAgents(orgId: string, onChange: (agents: Agent[]) => void): () => void {
-  return onSnapshot(orgCollection(orgId, 'agents'), (snap) => {
-    onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Agent))
-  })
+  return onSnapshot(
+    orgCollection(orgId, 'agents'),
+    (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Agent)),
+    reportConnectionError,
+  )
 }
 
 export function watchTasks(orgId: string, onChange: (tasks: Task[]) => void): () => void {
   const q = query(orgCollection(orgId, 'tasks'), orderBy('createdAt', 'desc'))
-  return onSnapshot(q, (snap) => {
-    onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Task))
-  })
+  return onSnapshot(
+    q,
+    (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Task)),
+    reportConnectionError,
+  )
 }
 
 export interface ActivityEntry {
@@ -68,9 +89,11 @@ export function watchMessages(
   limitCount = 200,
 ): () => void {
   const q = query(orgCollection(orgId, 'messages'), orderBy('createdAt', 'desc'), limit(limitCount))
-  return onSnapshot(q, (snap) => {
-    onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as MessageEntry))
-  })
+  return onSnapshot(
+    q,
+    (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as MessageEntry)),
+    reportConnectionError,
+  )
 }
 
 export function watchActivity(
@@ -79,9 +102,11 @@ export function watchActivity(
   limitCount = 100,
 ): () => void {
   const q = query(orgCollection(orgId, 'activity_log'), orderBy('ts', 'desc'), limit(limitCount))
-  return onSnapshot(q, (snap) => {
-    onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ActivityEntry))
-  })
+  return onSnapshot(
+    q,
+    (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ActivityEntry)),
+    reportConnectionError,
+  )
 }
 
 export interface MemoryEntry {
@@ -102,9 +127,11 @@ export function watchAgentMemory(
     orderBy('createdAt', 'desc'),
     limit(limitCount),
   )
-  return onSnapshot(q, (snap) => {
-    onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as MemoryEntry))
-  })
+  return onSnapshot(
+    q,
+    (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as MemoryEntry)),
+    reportConnectionError,
+  )
 }
 
 export interface MemoryHit {
@@ -134,9 +161,11 @@ export function watchAgentTrace(
   onChange: (lines: string[]) => void,
 ): () => void {
   const q = query(collection(db, 'orgs', orgId, 'agents', agentId, 'trace'), orderBy('ts', 'asc'))
-  return onSnapshot(q, (snap) => {
-    onChange(snap.docs.map((d) => d.data().line as string))
-  })
+  return onSnapshot(
+    q,
+    (snap) => onChange(snap.docs.map((d) => d.data().line as string)),
+    reportConnectionError,
+  )
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -184,10 +213,25 @@ async function get(path: string): Promise<unknown> {
   return res.json()
 }
 
+export interface HealthStatus {
+  status: string
+  firestore: string
+}
+
+// Unauthenticated (mirrors the backend route — no org scoping, no
+// require_org_member dependency), so this skips authHeaders()/get().
+export async function getHealthz(): Promise<HealthStatus> {
+  const res = await fetch(`${BACKEND_URL}/api/healthz`)
+  if (!res.ok) throw new Error(`healthz failed: ${res.status}`)
+  return res.json() as Promise<HealthStatus>
+}
+
 export function watchTriggers(orgId: string, onChange: (triggers: Trigger[]) => void): () => void {
-  return onSnapshot(orgCollection(orgId, 'triggers'), (snap) => {
-    onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Trigger))
-  })
+  return onSnapshot(
+    orgCollection(orgId, 'triggers'),
+    (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Trigger)),
+    reportConnectionError,
+  )
 }
 
 export function createTrigger(
@@ -216,9 +260,11 @@ export function getTriggerHistory(orgId: string, triggerId: string): Promise<Tri
 }
 
 export function watchWorkers(orgId: string, onChange: (workers: Worker[]) => void): () => void {
-  return onSnapshot(orgCollection(orgId, 'workers'), (snap) => {
-    onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Worker))
-  })
+  return onSnapshot(
+    orgCollection(orgId, 'workers'),
+    (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Worker)),
+    reportConnectionError,
+  )
 }
 
 export function spawnWorker(

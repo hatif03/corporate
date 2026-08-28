@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Icon, type IconName } from './components/Icon'
 import { PixelButton } from './components/PixelButton'
-import { PixelPanel } from './components/PixelPanel'
 import { TitleBar } from './components/TitleBar'
 import { SettingsModal } from './components/SettingsModal'
 import { AgentStrip } from './components/AgentStrip'
@@ -20,8 +19,9 @@ import { MemoryView } from './views/memory/MemoryView'
 import { GraphView } from './views/graph/GraphView'
 import { CommandsView } from './views/commands/CommandsView'
 import { KnowledgeBaseView } from './views/knowledge/KnowledgeBaseView'
-import { watchAgents, watchTasks } from './lib/platformClient'
-import { signInWithGoogle, signOutUser, watchAuthState } from './lib/authClient'
+import { LandingPage } from './views/landing/LandingPage'
+import { setConnectionErrorHandler, watchAgents, watchTasks } from './lib/platformClient'
+import { signOutUser, watchAuthState } from './lib/authClient'
 import type { Agent, Task } from './lib/types'
 import type { User } from 'firebase/auth'
 
@@ -59,33 +59,6 @@ function AskMeTabLabel({ pendingCount }: { pendingCount: number }) {
     <>
       Ask me{pendingCount > 0 && <span className="corp-badge" style={{ background: 'var(--status-blocked)', marginLeft: 6 }}>{pendingCount}</span>}
     </>
-  )
-}
-
-function SignInGate() {
-  return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--corp-space-6)' }}>
-      <PixelPanel variant="dialog" style={{ maxWidth: 420, textAlign: 'center', padding: 'var(--corp-space-6)' }}>
-        <h1
-          style={{
-            margin: '0 0 var(--corp-space-4)',
-            fontFamily: 'var(--corp-font-display)',
-            fontSize: 'var(--corp-text-display-lg)',
-            lineHeight: 'var(--corp-lh-display-lg)',
-            letterSpacing: '0.04em',
-          }}
-        >
-          Corporate
-        </h1>
-        <p className="corp-text-muted" style={{ margin: '0 0 var(--corp-space-5)', fontSize: 'var(--corp-text-body-md)' }}>
-          A company of autonomous AI department agents, working on a live office floor —
-          sign in to watch your team and dispatch new work.
-        </p>
-        <PixelButton variant="primary" fullWidth onClick={() => signInWithGoogle()}>
-          Sign in with Google
-        </PixelButton>
-      </PixelPanel>
-    </div>
   )
 }
 
@@ -141,10 +114,20 @@ function App() {
   const [sidebarWidth, setSidebarWidth] = useState(loadSidebarWidth)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
 
+  useEffect(() => {
+    setConnectionErrorHandler((err) => setConnectionError(err.message))
+  }, [])
   useEffect(() => watchAuthState(setUser), [])
-  useEffect(() => (user ? watchAgents(ORG_ID, setAgents) : undefined), [user])
-  useEffect(() => (user ? watchTasks(ORG_ID, setTasks) : undefined), [user])
+  useEffect(
+    () => (user ? watchAgents(ORG_ID, (a) => { setAgents(a); setConnectionError(null) }) : undefined),
+    [user],
+  )
+  useEffect(
+    () => (user ? watchTasks(ORG_ID, (t) => { setTasks(t); setConnectionError(null) }) : undefined),
+    [user],
+  )
 
   useEffect(() => {
     if (selectedAgentId && !agents.some((a) => a.id === selectedAgentId)) setSelectedAgentId(null)
@@ -160,7 +143,7 @@ function App() {
   }
 
   if (user === undefined) return null // brief auth-state check on load
-  if (user === null) return <SignInGate />
+  if (user === null) return <LandingPage />
 
   const pendingCount = tasks.filter((t) => t.hasPendingHumanQa).length
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
@@ -197,6 +180,21 @@ function App() {
         focusMode={focusMode}
         onToggleFocusMode={() => setFocusMode((f) => !f)}
       />
+
+      {connectionError && (
+        <div
+          className="corp-badge"
+          style={{
+            background: 'var(--status-blocked)',
+            borderRadius: 0,
+            textAlign: 'center',
+            padding: 'var(--corp-space-1)',
+            fontSize: 'var(--corp-text-body-sm)',
+          }}
+        >
+          Connection lost — retrying… ({connectionError})
+        </div>
+      )}
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         <div style={{ flex: 1, minHeight: 0, display: 'flex', padding: 'var(--corp-space-4)', overflow: 'hidden' }}>
