@@ -23,3 +23,16 @@ def upload_attachment(org_id: str, mime_type: str, data: bytes) -> str:
     blob = _get_bucket().blob(f"orgs/{org_id}/attachments/{uuid4().hex}")
     blob.upload_from_string(data, content_type=mime_type)
     return f"gs://{settings.corporate_attachments_bucket}/{blob.name}"
+
+
+def upload_public_media(org_id: str, subdir: str, mime_type: str, data: bytes) -> str:
+    """Uploads to gs://{bucket}/orgs/{org_id}/{subdir}/{uuid} and makes it
+    publicly readable, returning a plain https:// URL a browser can play/
+    render directly (unlike upload_attachment's gs:// URI, which only
+    Vertex AI itself ever dereferences). Used for generated media that's
+    fine to be public by nature (e.g. break-room ambient music, ADR-0019)
+    — never for anything containing user data."""
+    blob = _get_bucket().blob(f"orgs/{org_id}/{subdir}/{uuid4().hex}")
+    blob.upload_from_string(data, content_type=mime_type)
+    blob.make_public()
+    return blob.public_url
