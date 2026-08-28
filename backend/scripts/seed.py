@@ -105,9 +105,13 @@ DEFAULT_TRIGGERS: list[Trigger] = [
         target_agent="ceo",
         payload_template=(
             "Autonomous self-check: use list_agents_tool and list_tasks_tool to review the company's current "
-            "state. If anything looks stalled, blocked, or worth escalating, take action (create_task, "
-            "send_message) or note it via write_board. If nothing needs attention, do nothing — this is a "
-            "routine check, not a request for busywork."
+            "state. An empty task list is a normal, healthy state, not a tool failure — it just means nothing "
+            "is currently outstanding; don't report it as broken or escalate it. Only take action (create_task, "
+            "send_message) or note something via write_board if you find a REAL stalled/blocked task or a "
+            "genuinely new problem. If the board already has your most recent note on an unresolved issue and "
+            "nothing has changed since, leave it as is rather than overwriting it with a re-escalated restatement "
+            "— a stable, previously-reported condition doesn't need re-alarming every 30 minutes. If nothing "
+            "needs attention, do nothing — this is a routine check, not a request for busywork."
         ),
         cron="*/30 * * * *",
     ),
