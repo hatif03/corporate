@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+from app.services import store
 from app.services.lyria_client import generate_ambient_track
 from app.services.storage_client import upload_playable_media
 
@@ -21,6 +22,10 @@ async def generate_music(org_id: str, prompt: str = _DEFAULT_PROMPT) -> dict:
     try:
         audio_bytes = await generate_ambient_track(prompt)
     except Exception as exc:  # noqa: BLE001 - surfaced as a normal failed request, not a crash
+        # Logged here, not just swallowed into the HTTP response — Cloud Run
+        # doesn't capture response bodies, so without this the real cause is
+        # unrecoverable after the fact (confirmed the hard way in production).
+        store.log_activity(org_id, "breakroom", "music-generation-failed", str(exc))
         raise HTTPException(status_code=502, detail=f"music generation failed: {exc}") from None
     url = upload_playable_media(org_id, "breakroom", "audio/wav", audio_bytes)
     return {"url": url}

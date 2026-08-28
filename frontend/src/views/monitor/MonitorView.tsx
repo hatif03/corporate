@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Icon } from '../../components/Icon'
 import { PixelBadge } from '../../components/PixelBadge'
 import { dispatchGoal } from '../../lib/platformClient'
 import type { Agent } from '../../lib/types'
@@ -62,31 +63,24 @@ export function MonitorView({ orgId, agents }: { orgId: string; agents: Agent[] 
 
       <div className="corp-panel">
         <h3 style={{ marginTop: 0 }}>Agents</h3>
-        {agents.length === 0 && <p>No agents registered yet — run scripts/seed.py.</p>}
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ textAlign: 'left' }}>
-              <th>Name</th>
-              <th>Department</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {agents.map((a) => (
-              <tr key={a.id}>
-                <td>
-                  {a.name} {a.isCeo && <span title="CEO">👑</span>}
-                </td>
-                <td>{a.department}</td>
-                <td>
-                  <PixelBadge status={a.status} />
-                </td>
-                <td>{a.action || a.note || '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {agents.length === 0 && <p className="corp-text-muted">No agents registered yet — run scripts/seed.py.</p>}
+        {agents.map((a) => (
+          <div key={a.id} className="corp-divider-row" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <span style={{ flex: '0 0 160px', display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <strong>{a.name}</strong>
+              {a.isCeo && <span aria-label="CEO"><Icon name="crown" style={{ width: 12, height: 12 }} /></span>}
+            </span>
+            <span className="corp-text-muted" style={{ flex: '0 0 140px', fontSize: '0.85rem' }}>{a.department}</span>
+            <PixelBadge status={a.status} style={{ flexShrink: 0 }} />
+            <span
+              className="corp-text-muted"
+              style={{ flex: 1, fontSize: '0.85rem', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              title={a.action || a.note || undefined}
+            >
+              {a.action || a.note || '—'}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   )

@@ -20,8 +20,16 @@ def test_generate_music_returns_public_url():
 
 
 def test_generate_music_failure_returns_502_not_a_crash():
-    with patch("app.api.breakroom.generate_ambient_track", side_effect=RuntimeError("quota exceeded")):
+    with (
+        patch("app.api.breakroom.generate_ambient_track", side_effect=RuntimeError("quota exceeded")),
+        patch("app.api.breakroom.store.log_activity") as mock_log,
+    ):
         response = client.post("/api/org/demo/breakroom/music")
 
     assert response.status_code == 502
     assert "quota exceeded" in response.json()["detail"]
+    # Regression: a prior version swallowed the exception into only the HTTP
+    # response, which Cloud Run doesn't capture — a real failure in
+    # production was undiagnosable after the fact for exactly this reason.
+    mock_log.assert_called_once()
+    assert "quota exceeded" in mock_log.call_args.args[3]

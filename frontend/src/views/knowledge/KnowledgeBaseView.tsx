@@ -110,7 +110,13 @@ export function KnowledgeBaseView({ orgId, agents }: { orgId: string; agents: Ag
               <strong>{d.title}</strong>
               <div style={{ fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>{d.text.length > 300 ? `${d.text.slice(0, 300)}…` : d.text}</div>
             </div>
-            <button className="corp-button" title="Delete" onClick={() => remove(d.id)}>
+            <button
+              className="corp-button"
+              title="Delete"
+              onClick={() => {
+                if (window.confirm(`Delete "${d.title}"? This can't be undone.`)) void remove(d.id)
+              }}
+            >
               <Icon name="trash" />
             </button>
           </div>

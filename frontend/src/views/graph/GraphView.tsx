@@ -17,7 +17,15 @@ interface AggregatedEdge extends GraphEdge {
   lastAct: string
 }
 
-export function GraphView({ agents, orgId }: { agents: Agent[]; orgId: string }) {
+export function GraphView({
+  agents,
+  orgId,
+  onSelectAgent,
+}: {
+  agents: Agent[]
+  orgId: string
+  onSelectAgent?: (agentId: string) => void
+}) {
   const [messages, setMessages] = useState<MessageEntry[]>([])
 
   useEffect(() => watchMessages(orgId, setMessages), [orgId])
@@ -48,6 +56,14 @@ export function GraphView({ agents, orgId }: { agents: Agent[]; orgId: string })
   const positioned = useMemo(() => layoutGraph(nodes, edges), [nodes, edges])
   const positionById = useMemo(() => new Map(positioned.map((n) => [n.id, n])), [positioned])
 
+  if (messages.length === 0) {
+    return (
+      <div className="corp-panel">
+        <p className="corp-text-muted">No inter-agent messages yet — this fills in as the CEO and departments talk to each other.</p>
+      </div>
+    )
+  }
+
   return (
     <div className="corp-panel">
       <div style={{ background: 'var(--corp-paper-200)', boxShadow: 'var(--corp-border-panel-inset)' }}>
@@ -74,7 +90,11 @@ export function GraphView({ agents, orgId }: { agents: Agent[]; orgId: string })
             const agent = agents.find((a) => a.id === n.id)
             const size = 10 + Math.min(n.degree * 2, 20)
             return (
-              <g key={n.id}>
+              <g
+                key={n.id}
+                onClick={() => agent && onSelectAgent?.(agent.id)}
+                style={{ cursor: agent && onSelectAgent ? 'pointer' : 'default' }}
+              >
                 <rect
                   x={n.x - size / 2}
                   y={n.y - size / 2}
@@ -90,6 +110,9 @@ export function GraphView({ agents, orgId }: { agents: Agent[]; orgId: string })
             )
           })}
         </svg>
+      </div>
+      <div className="corp-text-muted" style={{ marginTop: 4, fontSize: '0.8rem' }}>
+        Node size = how many messages it's sent/received · yellow = CEO · click a node to open that agent.
       </div>
       <div className="corp-text-muted" style={{ marginTop: 8, fontSize: '0.8rem' }}>
         {Object.entries(ACT_COLOR).map(([act, color]) => (

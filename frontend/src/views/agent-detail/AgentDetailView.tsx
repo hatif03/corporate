@@ -19,21 +19,21 @@ import type { Agent } from '../../lib/types'
 
 type DetailTab = 'terminal' | 'messages' | 'skills'
 
-function AgentSkills({ orgId, agent }: { orgId: string; agent: Agent }) {
+function AgentSkills({
+  orgId,
+  agent,
+  custom,
+  refresh,
+}: {
+  orgId: string
+  agent: Agent
+  custom: AgentCustomSkill[]
+  refresh: () => Promise<void>
+}) {
   const builtIn = SKILLS_BY_DEPARTMENT[agent.department] ?? []
-  const [custom, setCustom] = useState<AgentCustomSkill[]>([])
   const [title, setTitle] = useState('')
   const [instructions, setInstructions] = useState('')
   const [saving, setSaving] = useState(false)
-
-  async function refresh() {
-    setCustom(await listAgentSkills(orgId, agent.id))
-  }
-
-  useEffect(() => {
-    void refresh()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgId, agent.id])
 
   async function save() {
     setSaving(true)
@@ -168,6 +168,18 @@ export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent 
   const [tab, setTab] = useState<DetailTab>('terminal')
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [customSkills, setCustomSkills] = useState<AgentCustomSkill[]>([])
+
+  async function refreshSkills() {
+    setCustomSkills(await listAgentSkills(orgId, agent.id))
+  }
+
+  useEffect(() => {
+    void refreshSkills()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId, agent.id])
+
+  const pendingSkillCount = customSkills.filter((s) => s.status === 'pending').length
 
   async function togglePause() {
     setBusy(true)
@@ -188,7 +200,12 @@ export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent 
         <span className="corp-text-muted" style={{ flexShrink: 0 }}>{agent.department}</span>
         <PixelBadge status={agent.status} style={{ flexShrink: 0 }} />
         {agent.mood && (
-          <span className="corp-badge" style={{ flexShrink: 0 }} title="Current mood, self-reported">
+          <span
+            className="corp-badge"
+            style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            title="Current mood, self-reported"
+          >
+            <Icon name="sparkle" style={{ width: 10, height: 10 }} />
             {agent.mood}
           </span>
         )}
@@ -200,8 +217,12 @@ export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent 
         </button>
       </div>
       {agent.voice && (
-        <p className="corp-text-muted" style={{ margin: 0, marginTop: -6, fontSize: '0.85rem', fontStyle: 'italic', flexShrink: 0 }}>
-          {agent.voice}
+        <p
+          className="corp-text-muted"
+          style={{ margin: 0, marginTop: -6, fontSize: '0.85rem', flexShrink: 0, display: 'flex', gap: 6, alignItems: 'baseline' }}
+        >
+          <strong style={{ fontStyle: 'normal', flexShrink: 0 }}>Voice:</strong>
+          <span style={{ fontStyle: 'italic' }}>{agent.voice}</span>
         </p>
       )}
 
@@ -226,13 +247,18 @@ export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent 
         >
           <Icon name="sparkle" style={{ marginRight: 4, verticalAlign: -2 }} />
           Skills
+          {pendingSkillCount > 0 && (
+            <span className="corp-badge" style={{ background: 'var(--status-blocked)', marginLeft: 6 }}>
+              {pendingSkillCount}
+            </span>
+          )}
         </button>
       </div>
 
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {tab === 'terminal' && <TerminalView orgId={orgId} agentId={agent.id} />}
         {tab === 'messages' && <AgentMessages orgId={orgId} agent={agent} />}
-        {tab === 'skills' && <AgentSkills orgId={orgId} agent={agent} />}
+        {tab === 'skills' && <AgentSkills orgId={orgId} agent={agent} custom={customSkills} refresh={refreshSkills} />}
       </div>
 
       {editing && <EditAgentModal orgId={orgId} agent={agent} onClose={() => setEditing(false)} onSaved={() => {}} />}

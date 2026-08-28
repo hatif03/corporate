@@ -31,17 +31,25 @@ def _access_token() -> str:
 async def generate_ambient_track(prompt: str) -> bytes:
     """Returns raw WAV bytes for a ~30s clip. Raises (httpx.HTTPStatusError,
     RuntimeError) on any failure — callers treat that as a normal failed
-    request, not a special case; see app/api/breakroom.py."""
+    request, not a special case; see app/api/breakroom.py.
+
+    Request body and response shape confirmed against a REAL live call (not
+    docs/search-snippet prose, which turned out to be wrong about the
+    response field name — a search summary said `audioContent`; the actual
+    live response uses `bytesBase64Encoded`, same convention as Imagen).
+    `parameters` stays empty — no `sample_count`, that was an incorrect
+    carry-over from Imagen-style params. Timeout is 90s, not 60s: a real
+    clip can take up to that long to generate."""
     url = _PREDICT_URL.format(
         location=settings.vertex_location, project=settings.google_cloud_project, model=settings.corporate_lyria_model
     )
-    body = {"instances": [{"prompt": prompt}], "parameters": {"sample_count": 1}}
+    body = {"instances": [{"prompt": prompt}], "parameters": {}}
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=90.0) as client:
         response = await client.post(url, json=body, headers={"Authorization": f"Bearer {_access_token()}"})
     response.raise_for_status()
 
     predictions = response.json().get("predictions", [])
     if not predictions:
         raise RuntimeError("Lyria returned no predictions")
-    return base64.b64decode(predictions[0]["audioContent"])
+    return base64.b64decode(predictions[0]["bytesBase64Encoded"])

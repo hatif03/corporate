@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { searchMemory, watchAgentMemory, type MemoryEntry, type MemoryHit } from '../../lib/platformClient'
+import { searchMemory, toDisplayDate, watchAgentMemory, type MemoryEntry, type MemoryHit } from '../../lib/platformClient'
 import { layoutGraph, HEIGHT, WIDTH } from '../graph/forceLayout'
 import type { Agent } from '../../lib/types'
 
@@ -117,11 +117,16 @@ export function MemoryView({ orgId, agents }: { orgId: string; agents: Agent[] }
         </select>
         <div style={{ marginTop: 8 }}>
           {entries.length === 0 && <p>No memory entries yet.</p>}
-          {entries.map((e) => (
-            <div key={e.id} className="corp-divider-row" style={{ fontSize: '0.9rem' }}>
-              {e.text}
-            </div>
-          ))}
+          {entries.map((e) => {
+            const when = toDisplayDate(e.createdAt)
+            return (
+              <div key={e.id} className="corp-divider-row" style={{ fontSize: '0.9rem' }}>
+                <span className="corp-badge" style={{ marginRight: 6, fontSize: '0.7rem' }}>{e.kind}</span>
+                {e.text}
+                {when && <div className="corp-text-muted" style={{ fontSize: '0.8rem' }}>{when.toLocaleString()}</div>}
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>

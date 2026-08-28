@@ -160,6 +160,15 @@ export function AgentCard({ agent, selected, doingCount = 0, onClick }: AgentCar
                   </span>
                 )}
               </span>
+              {agent.mood && (
+                <span
+                  className="corp-badge"
+                  title={`mood: ${agent.mood}`}
+                  style={{ flexShrink: 0, fontSize: 8, padding: '1px 4px', maxWidth: 60, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                >
+                  {agent.mood}
+                </span>
+              )}
               <PixelBadge status={agent.status} style={{ flexShrink: 0 }} />
             </div>
 

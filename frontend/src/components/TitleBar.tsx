@@ -72,6 +72,13 @@ export function TitleBar({
       <span className="corp-badge" style={{ background: 'var(--corp-sky-light)' }}>
         org: {orgId}
       </span>
+      <span
+        className="corp-text-muted corp-tip"
+        data-tip="Jump to any tab, agent, or action"
+        style={{ fontSize: 'var(--corp-text-body-sm)' }}
+      >
+        Ctrl/Cmd+K for commands
+      </span>
 
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 'var(--corp-space-2)' }}>
         <VoicePanel orgId={orgId} />

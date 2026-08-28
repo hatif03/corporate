@@ -64,6 +64,18 @@ const GLOW_SPEED = 0.06 // radians/frame — pulsing "at work" glow under active
 const SOCIAL_CHECK_INTERVAL = 900 // ticks (~15s at 60fps) between "should a chat start?" rolls
 const SOCIAL_DURATION_TICKS = 360 // ~6s per chat
 const SOCIAL_TRIGGER_CHANCE = 0.35
+const SOCIAL_MUSIC_CHANCE = 0.3 // Part 2: how often a water-cooler chat also fires break-room music
+
+// Music-reactive dancing (Part 1): while break-room music is actually
+// playing (musicPlayingRef, toggled by the <audio> element's own play/
+// pause/ended events), idle agents get a faster, bigger bob on a shared
+// fixed tempo instead of their normal idle breathing — same tick-driven
+// sine idiom as every other animation here, just a different profile. No
+// real audio-beat-detection: that's real complexity for no visible
+// difference at this scale.
+const DANCE_BOB_AMPLITUDE = 4.5 // px
+const DANCE_BOB_SPEED = 0.22 // radians/frame
+const DANCE_SWAY_AMPLITUDE = 2.5 // px — a little side-to-side, not just up/down
 
 interface AgentSprite {
   container: Container
@@ -71,6 +83,8 @@ interface AgentSprite {
   statusDot: Graphics
   glow: Graphics
   chatBubble: Graphics
+  musicNote: Graphics
+  moodLabel: Text
   baseTarget: { x: number; y: number }
   departmentId: string
   character: string
@@ -105,16 +119,41 @@ interface AgentSprite {
  * The Pixi ticker is stopped (not the whole app) whenever the tab is
  * hidden, so an invisible canvas doesn't keep burning GPU/CPU.
  */
-export function OfficeFloor({ agents, orgId }: { agents: Agent[]; orgId: string }) {
+export function OfficeFloor({
+  agents,
+  orgId,
+  onSelectAgent,
+}: {
+  agents: Agent[]
+  orgId: string
+  onSelectAgent?: (agentId: string) => void
+}) {
   const [musicUrl, setMusicUrl] = useState<string | null>(null)
   const [musicBusy, setMusicBusy] = useState(false)
+  const [musicError, setMusicError] = useState<string | null>(null)
+  // Read by the Pixi ticker (Part 1: music-reactive dancing, Part 2: the
+  // water-cooler auto-fire below) — plain refs, not state, since they're
+  // read every tick and must never trigger a React re-render.
+  const musicPlayingRef = useRef(false)
+  const musicBusyRef = useRef(false)
+  // Kept current on every render so the click handler attached once at
+  // sprite-creation time (inside the Pixi setup effect, which only runs on
+  // mount) always calls whatever onSelectAgent the latest render passed in.
+  const onSelectAgentRef = useRef(onSelectAgent)
+  onSelectAgentRef.current = onSelectAgent
 
   async function playBreakroomMusic() {
+    if (musicBusyRef.current) return
+    musicBusyRef.current = true
     setMusicBusy(true)
+    setMusicError(null)
     try {
       const { url } = await generateBreakroomMusic(orgId)
       setMusicUrl(url)
+    } catch (err) {
+      setMusicError(err instanceof Error ? err.message : 'Music generation failed — try again in a moment.')
     } finally {
+      musicBusyRef.current = false
       setMusicBusy(false)
     }
   }
@@ -184,6 +223,28 @@ export function OfficeFloor({ agents, orgId }: { agents: Agent[]; orgId: string 
           const chatBubble = new Graphics()
           container.addChild(chatBubble)
 
+          const musicNote = new Graphics()
+          container.addChild(musicNote)
+
+          // Mood, self-reported by the agent (set_mood tool) — a small
+          // floating label above the head, the same idiom already used for
+          // department labels, so it's visible where the user is actually
+          // looking instead of only two clicks deep in the detail view.
+          const moodLabel = new Text({
+            text: '',
+            style: { fontFamily: 'Inter, sans-serif', fontSize: 10, fill: 0x6b6458, fontWeight: '600' },
+          })
+          moodLabel.anchor.set(0.5, 1)
+          moodLabel.position.set(0, -46)
+          container.addChild(moodLabel)
+
+          // Click-to-select: connects this decorative canvas to the app's
+          // real selection system (AgentStrip/AgentCard already drive it) —
+          // previously the floor had zero interactivity.
+          container.eventMode = 'static'
+          container.cursor = 'pointer'
+          container.on('pointertap', () => onSelectAgentRef.current?.(agent.id))
+
           world.addChild(container)
           sprite = {
             container,
@@ -191,6 +252,8 @@ export function OfficeFloor({ agents, orgId }: { agents: Agent[]; orgId: string 
             statusDot,
             glow,
             chatBubble,
+            musicNote,
+            moodLabel,
             baseTarget,
             departmentId: agent.department,
             character: agent.character,
@@ -206,6 +269,7 @@ export function OfficeFloor({ agents, orgId }: { agents: Agent[]; orgId: string 
         sprite.departmentId = agent.department
         sprite.character = agent.character
         sprite.status = agent.status
+        sprite.moodLabel.text = agent.mood ?? ''
         const variant = variantForCharacter(agent.character, agent.department)
         sprite.statusDot.clear().circle(10, -4, 5).fill({ color: STATUS_DOT_COLOR[agent.status] ?? 0xa899b5 }).stroke({
           width: 1,
@@ -387,6 +451,14 @@ export function OfficeFloor({ agents, orgId }: { agents: Agent[]; orgId: string 
                 const until = tick + SOCIAL_DURATION_TICKS
                 socialPairsRef.current.set(a, { until, offsetX: -12 })
                 socialPairsRef.current.set(b, { until, offsetX: 12 })
+
+                // Part 2: a water-cooler chat is a natural, low-key moment
+                // to also fire break-room music — reuses the exact same
+                // Lyria call the manual button uses, no new backend
+                // endpoint, only when nothing's already playing/generating.
+                if (!musicPlayingRef.current && !musicBusyRef.current && Math.random() < SOCIAL_MUSIC_CHANCE) {
+                  void playBreakroomMusic()
+                }
               }
             }
           }
@@ -431,10 +503,15 @@ export function OfficeFloor({ agents, orgId }: { agents: Agent[]; orgId: string 
 
           // Subtle continuous bob — applied to the sprite's own local
           // offset, never to container.x/y, so it can't interfere with the
-          // walk-to-target distance check above.
-          const bobAmplitude = isActive ? BOB_AMPLITUDE_ACTIVE : BOB_AMPLITUDE_IDLE
-          const bobSpeed = isActive ? BOB_SPEED_ACTIVE : BOB_SPEED_IDLE
-          sprite.charSprite.position.y = Math.sin(tick * bobSpeed + sprite.bobPhase) * bobAmplitude
+          // walk-to-target distance check above. Idle agents dance on a
+          // shared fixed tempo (no per-agent bobPhase offset) while
+          // break-room music is playing, so it reads as everyone reacting
+          // to the same music rather than each doing their own thing.
+          const dancing = musicPlayingRef.current && isIdle
+          const bobAmplitude = dancing ? DANCE_BOB_AMPLITUDE : isActive ? BOB_AMPLITUDE_ACTIVE : BOB_AMPLITUDE_IDLE
+          const bobSpeed = dancing ? DANCE_BOB_SPEED : isActive ? BOB_SPEED_ACTIVE : BOB_SPEED_IDLE
+          sprite.charSprite.position.y = Math.sin(tick * bobSpeed + (dancing ? 0 : sprite.bobPhase)) * bobAmplitude
+          sprite.charSprite.position.x = dancing ? Math.sin(tick * bobSpeed * 0.5) * DANCE_SWAY_AMPLITUDE : 0
 
           // Pulsing "at work" glow under active agents, at their desk.
           sprite.glow.clear()
@@ -457,6 +534,19 @@ export function OfficeFloor({ agents, orgId }: { agents: Agent[]; orgId: string 
             for (const dotX of [-4, 0, 4]) {
               sprite.chatBubble.circle(dotX, bobbleY - 1, 1.2).fill({ color: 0x6b6458, alpha: 0.8 })
             }
+          }
+
+          // Small floating music-note glyph over anyone dancing to
+          // break-room music — same pixel-note shape as the `music` Icon
+          // (components/Icon.tsx), redrawn as Pixi Graphics, distinct from
+          // the water-cooler chat bubble so the two cues never read as the
+          // same thing.
+          sprite.musicNote.clear()
+          if (dancing) {
+            const noteY = -40 + Math.sin(tick * DANCE_BOB_SPEED + sprite.bobPhase) * 2
+            sprite.musicNote.roundRect(-3, noteY, 6, 6, 1).fill({ color: 0x6bcf7f, alpha: 0.9 })
+            sprite.musicNote.rect(2, noteY - 9, 1.4, 10).fill({ color: 0x6bcf7f, alpha: 0.9 })
+            sprite.musicNote.rect(3.4, noteY - 9, 3, 2).fill({ color: 0x6bcf7f, alpha: 0.9 })
           }
         }
       })
@@ -503,7 +593,28 @@ export function OfficeFloor({ agents, orgId }: { agents: Agent[]; orgId: string 
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       <div style={{ position: 'absolute', right: 12, bottom: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-        {musicUrl && <audio src={musicUrl} controls autoPlay style={{ height: 32 }} />}
+        {musicUrl && (
+          <audio
+            src={musicUrl}
+            controls
+            autoPlay
+            style={{ height: 32 }}
+            onPlay={() => {
+              musicPlayingRef.current = true
+            }}
+            onPause={() => {
+              musicPlayingRef.current = false
+            }}
+            onEnded={() => {
+              musicPlayingRef.current = false
+            }}
+          />
+        )}
+        {musicError && (
+          <span className="corp-text-muted" style={{ fontSize: '0.8rem', color: 'var(--corp-coral)', maxWidth: 220, textAlign: 'right' }}>
+            {musicError}
+          </span>
+        )}
         <button className="corp-button" onClick={playBreakroomMusic} disabled={musicBusy} title="Generate break room music (Lyria)">
           <Icon name="music" style={{ marginRight: 4, verticalAlign: -2 }} />
           {musicBusy ? 'Generating…' : 'Break room music'}

@@ -13,6 +13,25 @@ function orgCollection(orgId: string, name: string) {
   return collection(db, 'orgs', orgId, name)
 }
 
+// Every doc read via onSnapshot below spreads `...d.data()` verbatim, so a
+// backend-written Python datetime (app/services/store.py's `_now()`) comes
+// back as a real Firestore Timestamp object at runtime — despite several
+// interfaces here typing that field as `string`. `new Date(aTimestamp)`
+// does NOT parse that correctly (Timestamp isn't a valid Date constructor
+// argument), so anywhere a timestamp is actually rendered needs this, not
+// a direct `new Date(...)` call.
+export function toDisplayDate(value: unknown): Date | null {
+  if (value instanceof Date) return value
+  if (value && typeof value === 'object' && 'toDate' in value && typeof (value as { toDate: unknown }).toDate === 'function') {
+    return (value as { toDate: () => Date }).toDate()
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    const d = new Date(value)
+    return Number.isNaN(d.getTime()) ? null : d
+  }
+  return null
+}
+
 export function watchAgents(orgId: string, onChange: (agents: Agent[]) => void): () => void {
   return onSnapshot(orgCollection(orgId, 'agents'), (snap) => {
     onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Agent))

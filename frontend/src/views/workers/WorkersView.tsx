@@ -17,16 +17,26 @@ export function WorkersView({ orgId, agents }: { orgId: string; agents: Agent[] 
   const [prompt, setPrompt] = useState('')
   const [targetAgent, setTargetAgent] = useState('')
   const [modelTier, setModelTier] = useState<'flash' | 'pro'>('flash')
+  const [error, setError] = useState<string | null>(null)
+  const [spawning, setSpawning] = useState(false)
 
   useEffect(() => watchWorkers(orgId, setWorkers), [orgId])
 
   async function submit() {
     if (!prompt.trim()) return
-    await spawnWorker(orgId, 'manual-test', prompt, targetAgent || null, modelTier)
-    setPrompt('')
-    setTargetAgent('')
-    setModelTier('flash')
-    setStep('briefing')
+    setSpawning(true)
+    setError(null)
+    try {
+      await spawnWorker(orgId, 'manual-test', prompt, targetAgent || null, modelTier)
+      setPrompt('')
+      setTargetAgent('')
+      setModelTier('flash')
+      setStep('briefing')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSpawning(false)
+    }
   }
 
   return (
@@ -77,10 +87,11 @@ export function WorkersView({ orgId, agents }: { orgId: string; agents: Agent[] 
               <button className="corp-button" onClick={() => setStep('briefing')}>
                 Back
               </button>
-              <button className="corp-button" onClick={submit}>
-                Spawn
+              <button className="corp-button" onClick={submit} disabled={spawning}>
+                {spawning ? 'Spawning…' : 'Spawn'}
               </button>
             </div>
+            {error && <p style={{ color: 'var(--corp-coral)', marginTop: 8 }}>{error}</p>}
           </>
         )}
       </div>

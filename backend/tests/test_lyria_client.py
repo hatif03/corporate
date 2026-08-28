@@ -26,7 +26,7 @@ def _mock_auth():
 async def test_generate_ambient_track_returns_decoded_audio_bytes():
     fake_response = httpx.Response(
         200,
-        json={"predictions": [{"audioContent": _FAKE_AUDIO_B64, "mimeType": "audio/wav"}]},
+        json={"predictions": [{"bytesBase64Encoded": _FAKE_AUDIO_B64, "mimeType": "audio/wav"}]},
         request=httpx.Request("POST", "https://example.com"),
     )
     mock_async_client = AsyncMock()
@@ -42,6 +42,13 @@ async def test_generate_ambient_track_returns_decoded_audio_bytes():
     call_kwargs = mock_async_client.__aenter__.return_value.post.call_args.kwargs
     assert call_kwargs["headers"]["Authorization"] == "Bearer fake-access-token"
     assert call_kwargs["json"]["instances"][0]["prompt"] == "calm office music"
+    # Regression: the real Lyria contract (confirmed via an actual live
+    # call, not docs/search-snippet prose — those turned out to be wrong
+    # about the response field name too, see bytesBase64Encoded below) has
+    # an empty `parameters` object — a prior `sample_count` guess (carried
+    # over from Imagen-style params) wasn't part of the real contract.
+    assert call_kwargs["json"]["parameters"] == {}
+    assert "sample_count" not in call_kwargs["json"]["parameters"]
 
 
 async def test_generate_ambient_track_raises_on_empty_predictions():

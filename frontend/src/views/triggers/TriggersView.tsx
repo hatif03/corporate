@@ -30,11 +30,21 @@ function TriggerHistoryList({ orgId, triggerId }: { orgId: string; triggerId: st
   )
 }
 
+// The two proactive triggers scripts/seed.py creates for the CEO — a fixed,
+// known id, not a heuristic, so this is exact, not a guess.
+const AUTONOMOUS_TRIGGER_IDS = new Set(['trig-ceo-self-check', 'trig-ceo-memory-curation'])
+
 function TriggerRow({ orgId, t }: { orgId: string; t: Trigger }) {
   const [showHistory, setShowHistory] = useState(false)
+  const isAutonomous = AUTONOMOUS_TRIGGER_IDS.has(t.id)
   return (
     <div className="corp-divider-row">
       <strong>{t.name}</strong> <span className="corp-badge" style={{ background: 'var(--corp-sky-light)' }}>{t.type}</span>
+      {isAutonomous && (
+        <span className="corp-badge" style={{ background: 'var(--corp-lilac)' }} title="The CEO set this up for itself — not something a person configured">
+          autonomous
+        </span>
+      )}
       <div className="corp-text-muted" style={{ fontSize: '0.85rem' }}>
         → {t.targetAgent} {t.cron && `· ${t.cron}`}
         {t.lastFiredAt && ` · last fired ${new Date(t.lastFiredAt).toLocaleString()}`}
@@ -46,7 +56,12 @@ function TriggerRow({ orgId, t }: { orgId: string; t: Trigger }) {
         <button className="corp-button" onClick={() => toggleTrigger(orgId, t.id, !t.enabled)}>
           {t.enabled ? 'Disable' : 'Enable'}
         </button>
-        <button className="corp-button" onClick={() => deleteTrigger(orgId, t.id)}>
+        <button
+          className="corp-button"
+          onClick={() => {
+            if (window.confirm(`Delete trigger "${t.name}"? This can't be undone.`)) void deleteTrigger(orgId, t.id)
+          }}
+        >
           Delete
         </button>
         <button className="corp-button" onClick={() => setShowHistory((s) => !s)}>

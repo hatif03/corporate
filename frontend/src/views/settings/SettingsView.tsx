@@ -151,8 +151,15 @@ function ConnectedApps({ orgId, agents }: { orgId: string; agents: Agent[] }) {
                   <strong style={{ textTransform: 'capitalize' }}>{kind}</strong>
                 </span>
                 {integ ? (
-                  <span className="corp-badge" style={{ background: integ.enabled ? 'var(--corp-mint-light)' : undefined }}>
-                    {integ.enabled ? 'connected' : 'disabled'}
+                  <span style={{ display: 'inline-flex', gap: 4 }}>
+                    <span className="corp-badge" style={{ background: integ.enabled ? 'var(--corp-mint-light)' : undefined }}>
+                      {integ.enabled ? 'connected' : 'disabled'}
+                    </span>
+                    {integ.authType === 'oauth2' && (
+                      <span className="corp-badge" style={{ background: 'var(--corp-lilac)' }} title="Connected via OAuth — no secret was ever pasted into this app">
+                        OAuth
+                      </span>
+                    )}
                   </span>
                 ) : connectingKind === kind ? (
                   <button className="corp-button" onClick={() => setConnectingKind(null)}>
@@ -265,7 +272,41 @@ export function SettingsView({ orgId, agents }: { orgId: string; agents: Agent[]
         )}
       </div>
 
+      <CapabilitiesPanel />
       <ConnectedApps orgId={orgId} agents={agents} />
+    </div>
+  )
+}
+
+const CAPABILITIES: { icon: IconName; name: string; description: string }[] = [
+  { icon: 'brain', name: 'Gemini', description: 'Every agent’s own reasoning — via Vertex AI, never a raw API key.' },
+  {
+    icon: 'sparkle',
+    name: 'Gemma',
+    description: 'A second, independent model that double-checks Finance & Audit and Engineering & SRE’s claims before they’re trusted — see the “independently verified” badge on their tasks.',
+  },
+  { icon: 'music', name: 'Lyria', description: 'Generates the office’s break-room music, on demand or when agents meet at the water cooler.' },
+  { icon: 'image', name: 'Veo', description: 'Marketing & Comms can generate a short promo video alongside its copy — just ask for one in the brief.' },
+]
+
+function CapabilitiesPanel() {
+  return (
+    <div className="corp-panel">
+      <h3 style={{ marginTop: 0 }}>What this company can do</h3>
+      <p className="corp-text-muted" style={{ fontSize: '0.85rem' }}>
+        Four Google AI models, each doing real work in this org — not just Gemini.
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+        {CAPABILITIES.map((c) => (
+          <div key={c.name} className="corp-divider-row" style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <Icon name={c.icon} style={{ flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <strong>{c.name}</strong>
+              <div className="corp-text-muted" style={{ fontSize: '0.8rem' }}>{c.description}</div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

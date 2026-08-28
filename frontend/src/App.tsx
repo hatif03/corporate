@@ -29,7 +29,7 @@ const ORG_ID = import.meta.env.VITE_ORG_ID ?? 'demo'
 const SIDEBAR_WIDTH_KEY = 'corp.sidebarWidth'
 const DEFAULT_SIDEBAR_WIDTH = 420
 
-type Tab = 'monitor' | 'tasks' | 'askme' | 'activity' | 'triggers' | 'workers' | 'memory' | 'knowledge' | 'graph' | 'commands'
+export type Tab = 'monitor' | 'tasks' | 'askme' | 'activity' | 'triggers' | 'workers' | 'memory' | 'knowledge' | 'graph' | 'commands'
 
 const TAB_ICONS: Record<Tab, IconName> = {
   monitor: 'monitor',
@@ -96,6 +96,7 @@ function DashboardTabs({
   tab,
   setTab,
   tabs,
+  onSelectAgent,
 }: {
   orgId: string
   agents: Agent[]
@@ -103,6 +104,7 @@ function DashboardTabs({
   tab: Tab
   setTab: (t: Tab) => void
   tabs: { id: Tab; label: ReactNode }[]
+  onSelectAgent: (agentId: string) => void
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
@@ -123,7 +125,7 @@ function DashboardTabs({
         {tab === 'workers' && <WorkersView orgId={orgId} agents={agents} />}
         {tab === 'memory' && <MemoryView orgId={orgId} agents={agents} />}
         {tab === 'knowledge' && <KnowledgeBaseView orgId={orgId} agents={agents} />}
-        {tab === 'graph' && <GraphView orgId={orgId} agents={agents} />}
+        {tab === 'graph' && <GraphView orgId={orgId} agents={agents} onSelectAgent={onSelectAgent} />}
         {tab === 'commands' && <CommandsView orgId={orgId} />}
       </div>
     </div>
@@ -162,7 +164,11 @@ function App() {
 
   const pendingCount = tasks.filter((t) => t.hasPendingHumanQa).length
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
-  const rightPanelShowsDetail = !!selectedAgent && !selectedAgent.isCeo
+  // The CEO used to be excluded here, which meant a CEO-proposed pending
+  // skill (it has the same tools as every department, factory.py's
+  // _CEO_TOOLS) was permanently unreachable — Terminal/Messages/Skills all
+  // already work generically for any agent id, CEO included.
+  const rightPanelShowsDetail = !!selectedAgent
 
   function handleSelectAgent(agentId: string) {
     setSelectedAgentId((current) => (current === agentId ? null : agentId))
@@ -197,7 +203,7 @@ function App() {
           {!focusMode && (
             <>
               <main style={{ flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden' }}>
-                <OfficeFloor agents={agents} orgId={ORG_ID} />
+                <OfficeFloor agents={agents} orgId={ORG_ID} onSelectAgent={handleSelectAgent} />
               </main>
 
               <SidebarSplitter width={sidebarWidth} onChange={updateSidebarWidth} viewportWidth={window.innerWidth} />
@@ -208,7 +214,7 @@ function App() {
             {rightPanelShowsDetail ? (
               <AgentDetailView orgId={ORG_ID} agent={selectedAgent!} />
             ) : (
-              <DashboardTabs orgId={ORG_ID} agents={agents} tasks={tasks} tab={tab} setTab={setTab} tabs={tabs} />
+              <DashboardTabs orgId={ORG_ID} agents={agents} tasks={tasks} tab={tab} setTab={setTab} tabs={tabs} onSelectAgent={handleSelectAgent} />
             )}
           </div>
         </div>
@@ -218,7 +224,15 @@ function App() {
 
       {settingsOpen && <SettingsModal orgId={ORG_ID} agents={agents} onClose={() => setSettingsOpen(false)} />}
       <CompletionToast tasks={tasks} />
-      <CommandPalette orgId={ORG_ID} agents={agents} onSelectAgent={handleSelectAgent} />
+      <CommandPalette
+        orgId={ORG_ID}
+        agents={agents}
+        onSelectAgent={handleSelectAgent}
+        onGoToTab={setTab}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onToggleFocusMode={() => setFocusMode((f) => !f)}
+        onSignOut={() => signOutUser()}
+      />
     </div>
   )
 }
