@@ -19,6 +19,7 @@ import { MemoryView } from './views/memory/MemoryView'
 import { GraphView } from './views/graph/GraphView'
 import { CommandsView } from './views/commands/CommandsView'
 import { KnowledgeBaseView } from './views/knowledge/KnowledgeBaseView'
+import { BoardView } from './views/board/BoardView'
 import { LandingPage } from './views/landing/LandingPage'
 import { setConnectionErrorHandler, watchAgents, watchTasks } from './lib/platformClient'
 import { signOutUser, watchAuthState } from './lib/authClient'
@@ -29,7 +30,7 @@ const ORG_ID = import.meta.env.VITE_ORG_ID ?? 'demo'
 const SIDEBAR_WIDTH_KEY = 'corp.sidebarWidth'
 const DEFAULT_SIDEBAR_WIDTH = 420
 
-export type Tab = 'monitor' | 'tasks' | 'askme' | 'activity' | 'triggers' | 'workers' | 'memory' | 'knowledge' | 'graph' | 'commands'
+export type Tab = 'monitor' | 'tasks' | 'askme' | 'activity' | 'triggers' | 'workers' | 'memory' | 'knowledge' | 'board' | 'graph' | 'commands'
 
 const TAB_ICONS: Record<Tab, IconName> = {
   monitor: 'monitor',
@@ -40,6 +41,7 @@ const TAB_ICONS: Record<Tab, IconName> = {
   workers: 'wrench',
   memory: 'brain',
   knowledge: 'book',
+  board: 'ledger',
   graph: 'share',
   commands: 'code',
 }
@@ -98,6 +100,7 @@ function DashboardTabs({
         {tab === 'workers' && <WorkersView orgId={orgId} agents={agents} />}
         {tab === 'memory' && <MemoryView orgId={orgId} agents={agents} />}
         {tab === 'knowledge' && <KnowledgeBaseView orgId={orgId} agents={agents} />}
+        {tab === 'board' && <BoardView orgId={orgId} />}
         {tab === 'graph' && <GraphView orgId={orgId} agents={agents} onSelectAgent={onSelectAgent} />}
         {tab === 'commands' && <CommandsView orgId={orgId} />}
       </div>
@@ -166,6 +169,7 @@ function App() {
     { id: 'workers', label: 'Workers' },
     { id: 'memory', label: 'Memory' },
     { id: 'knowledge', label: 'Knowledge' },
+    { id: 'board', label: 'Board' },
     { id: 'graph', label: 'Graph' },
     { id: 'commands', label: 'Commands' },
   ]

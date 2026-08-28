@@ -9,6 +9,7 @@ import {
   listAgentSkills,
   pauseAgent,
   resumeAgent,
+  watchAgentSession,
   watchMessages,
   type AgentCustomSkill,
   type MessageEntry,
@@ -142,6 +143,17 @@ function AgentSkills({
   )
 }
 
+function AgentSessionLine({ orgId, agentId }: { orgId: string; agentId: string }) {
+  const [turnCount, setTurnCount] = useState<number | null>(null)
+  useEffect(() => watchAgentSession(orgId, agentId, (s) => setTurnCount(s?.turnCount ?? null)), [orgId, agentId])
+  if (turnCount == null) return null
+  return (
+    <p className="corp-text-muted" style={{ margin: 0, marginTop: -6, fontSize: '0.8rem', flexShrink: 0 }}>
+      session: {turnCount} turn{turnCount === 1 ? '' : 's'} recorded
+    </p>
+  )
+}
+
 function AgentMessages({ orgId, agent }: { orgId: string; agent: Agent }) {
   const [messages, setMessages] = useState<MessageEntry[]>([])
 
@@ -236,7 +248,9 @@ export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent 
       )}
       <p className="corp-text-muted" style={{ margin: 0, marginTop: -6, fontSize: '0.8rem', flexShrink: 0 }}>
         running on {agent.provider} · {agent.model}
+        {agent.createdAt && ` · active since ${new Date(agent.createdAt).toLocaleDateString()}`}
       </p>
+      <AgentSessionLine orgId={orgId} agentId={agent.id} />
 
       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
         <button

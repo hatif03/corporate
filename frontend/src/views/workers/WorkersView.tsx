@@ -1,6 +1,26 @@
 import { useEffect, useState } from 'react'
-import { spawnWorker, stopWorker, watchWorkers } from '../../lib/platformClient'
+import { Collapsible } from '../../components/Collapsible'
+import { spawnWorker, stopWorker, watchAgentTrace, watchWorkers } from '../../lib/platformClient'
 import type { Agent, Worker } from '../../lib/types'
+
+// Workers run through the same ADK Runner/session machinery as any other
+// agent (session id === worker id, see app/services/workers.py), so the
+// existing trace subcollection under agents/{id}/trace already fills in
+// for them — no new backend collection or endpoint needed, just this reuse.
+function WorkerTrace({ orgId, workerId }: { orgId: string; workerId: string }) {
+  const [lines, setLines] = useState<string[]>([])
+  useEffect(() => watchAgentTrace(orgId, workerId, setLines), [orgId, workerId])
+  if (lines.length === 0) return <p className="corp-text-muted" style={{ fontSize: '0.8rem' }}>No trace yet.</p>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {lines.map((l, i) => (
+        <div key={i} className="corp-text-muted" style={{ fontSize: '0.8rem', fontFamily: 'var(--corp-font-mono)' }}>
+          {l}
+        </div>
+      ))}
+    </div>
+  )
+}
 
 const STATUS_COLOR: Record<Worker['status'], string> = {
   spawned: 'var(--status-idle)',
@@ -106,6 +126,9 @@ export function WorkersView({ orgId, agents }: { orgId: string; agents: Agent[] 
               {w.status}
             </span>
             <div className="corp-text-muted" style={{ fontSize: '0.85rem' }}>from: {w.sourceEvent}</div>
+            {w.cloudRunJobExecutionId && (
+              <div className="corp-text-muted" style={{ fontSize: '0.8rem' }}>job: {w.cloudRunJobExecutionId}</div>
+            )}
             {w.result?.reply != null && <div style={{ fontSize: '0.85rem' }}>{String(w.result.reply)}</div>}
             {w.result?.error != null && (
               <div style={{ fontSize: '0.85rem', color: 'var(--corp-coral)' }}>{String(w.result.error)}</div>
@@ -115,6 +138,9 @@ export function WorkersView({ orgId, agents }: { orgId: string; agents: Agent[] 
                 Stop
               </button>
             )}
+            <Collapsible title={<span style={{ fontSize: '0.8rem' }}>Trace</span>}>
+              <WorkerTrace orgId={orgId} workerId={w.id} />
+            </Collapsible>
           </div>
         ))}
       </div>

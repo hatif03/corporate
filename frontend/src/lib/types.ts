@@ -38,6 +38,8 @@ export interface Agent {
   provider: string
   model: string
   paused: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type TaskStatus = 'todo' | 'doing' | 'blocked' | 'done'
@@ -63,6 +65,10 @@ export interface Task {
   result?: Record<string, unknown> | null
   createdBy: string
   priority: number
+  modelTier: 'flash' | 'pro'
+  attachment?: { gcsUri: string; mimeType: string } | null
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type TriggerType = 'schedule' | 'webhook'
@@ -88,4 +94,5 @@ export interface Worker {
   agentId: string
   conversation: string
   result?: Record<string, unknown> | null
+  cloudRunJobExecutionId?: string | null
 }

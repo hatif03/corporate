@@ -1,5 +1,12 @@
+import { Collapsible } from '../../components/Collapsible'
 import { Icon } from '../../components/Icon'
 import type { Task, TaskStatus } from '../../lib/types'
+
+interface AspectVote {
+  aspect: string
+  passed: boolean
+  reason: string
+}
 
 const COLUMNS: { status: TaskStatus; label: string }[] = [
   { status: 'todo', label: 'Todo' },
@@ -13,15 +20,24 @@ function TaskCard({ task }: { task: Task }) {
   // + the independent-review checker, ADR-0019) — the data existed before
   // now, this is the first time it's actually rendered anywhere.
   const verified = task.result?.verified
+  const votes = task.result?.votes as AspectVote[] | undefined
+  const retried = task.result?.retried
   return (
     <div className="corp-panel" style={{ marginBottom: 8 }}>
       <strong>{task.title}</strong>{' '}
-      <span className="corp-badge" style={{ background: 'var(--corp-sky-light)' }}>{task.taskType}</span>
+      <span className="corp-badge" style={{ background: 'var(--corp-sky-light)' }}>{task.taskType}</span>{' '}
+      <span className="corp-badge" title="Which Gemini tier this task runs on (ADR-0013)">{task.modelTier}</span>
       <div className="corp-text-muted" style={{ fontSize: '0.85rem' }}>
         {task.assignee ?? 'unassigned'} · priority {task.priority}
+        {task.createdAt && ` · created ${new Date(task.createdAt).toLocaleString()}`}
       </div>
       {task.description && (
         <p style={{ fontSize: '0.85rem', margin: '4px 0 0' }}>{task.description}</p>
+      )}
+      {task.attachment && (
+        <div className="corp-text-muted" style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Icon name="image" style={{ width: 12, height: 12 }} /> attachment: {task.attachment.mimeType}
+        </div>
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
         {task.hasPendingHumanQa && (
@@ -36,9 +52,19 @@ function TaskCard({ task }: { task: Task }) {
             title={verified ? 'Passed deterministic checks and an independent model review' : 'An independent model review flagged this'}
           >
             {verified ? '✓ independently verified' : '⚠ independent review flagged'}
+            {retried ? ' (retried)' : ''}
           </span>
         )}
       </div>
+      {votes && votes.length > 0 && (
+        <Collapsible title={<span style={{ fontSize: '0.8rem' }}>{votes.length} checker vote(s)</span>}>
+          {votes.map((v, i) => (
+            <div key={i} className="corp-text-muted" style={{ fontSize: '0.8rem', marginBottom: 2 }}>
+              {v.passed ? '✓' : '✗'} <strong>{v.aspect}</strong>{v.reason ? ` — ${v.reason}` : ''}
+            </div>
+          ))}
+        </Collapsible>
+      )}
       {Boolean(task.result?.videoGenerating) && !task.result?.videoUrl && (
         <div
           className="corp-divider-row"

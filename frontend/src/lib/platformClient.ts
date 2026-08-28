@@ -2,7 +2,7 @@
 // Firestore/REST directly (mirrors the backend's platform-client convention
 // — see docs/system_prompt.md).
 
-import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore'
+import { collection, doc, limit, onSnapshot, orderBy, query } from 'firebase/firestore'
 import { db } from './firebase'
 import { getIdToken } from './authClient'
 import type { Agent, Task, Trigger, TriggerType, Worker } from './types'
@@ -166,6 +166,61 @@ export function watchAgentTrace(
     (snap) => onChange(snap.docs.map((d) => d.data().line as string)),
     reportConnectionError,
   )
+}
+
+export interface BoardNote {
+  markdown: string
+  updatedAt?: string
+  updatedBy?: string
+}
+
+// orgs/{orgId}/board/main — the CEO's shared company blackboard
+// (app/adk_agents/tools/universal.py's write_board). A single doc, not a
+// collection, so this reads via doc() rather than orgCollection().
+export function watchBoard(orgId: string, onChange: (note: BoardNote | null) => void): () => void {
+  return onSnapshot(
+    doc(db, 'orgs', orgId, 'board', 'main'),
+    (snap) => onChange(snap.exists() ? (snap.data() as BoardNote) : null),
+    reportConnectionError,
+  )
+}
+
+export interface AgentSessionSummary {
+  turnCount: number
+}
+
+// orgs/{orgId}/agent_sessions/{agentId} (session_id === agent_id, see
+// app/services/session_service.py) — only state/events are actually stored,
+// so "turn count" here is derived client-side from the events array length
+// rather than a field the backend tracks explicitly.
+export function watchAgentSession(
+  orgId: string,
+  agentId: string,
+  onChange: (summary: AgentSessionSummary | null) => void,
+): () => void {
+  return onSnapshot(
+    doc(db, 'orgs', orgId, 'agent_sessions', agentId),
+    (snap) => {
+      if (!snap.exists()) {
+        onChange(null)
+        return
+      }
+      const events = snap.data().events as unknown[] | undefined
+      onChange({ turnCount: events?.length ?? 0 })
+    },
+    reportConnectionError,
+  )
+}
+
+export interface AuditStatus {
+  ok: boolean
+  entry_count: number
+  broken_at: string | null
+  reason: string | null
+}
+
+export function getAuditStatus(orgId: string): Promise<AuditStatus> {
+  return get(`/api/org/${orgId}/audit/verify`) as Promise<AuditStatus>
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
