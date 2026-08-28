@@ -9,7 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from app.services.lyria_client import generate_ambient_track
-from app.services.storage_client import upload_public_media
+from app.services.storage_client import upload_playable_media
 
 router = APIRouter(prefix="/api/org/{org_id}/breakroom", tags=["breakroom"])
 
@@ -22,5 +22,5 @@ async def generate_music(org_id: str, prompt: str = _DEFAULT_PROMPT) -> dict:
         audio_bytes = await generate_ambient_track(prompt)
     except Exception as exc:  # noqa: BLE001 - surfaced as a normal failed request, not a crash
         raise HTTPException(status_code=502, detail=f"music generation failed: {exc}") from None
-    url = upload_public_media(org_id, "breakroom", "audio/wav", audio_bytes)
+    url = upload_playable_media(org_id, "breakroom", "audio/wav", audio_bytes)
     return {"url": url}

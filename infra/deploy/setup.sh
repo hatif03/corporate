@@ -55,6 +55,18 @@ gcloud storage buckets add-iam-policy-binding "gs://${ATTACHMENTS_BUCKET}" \
   --member="serviceAccount:${SA_EMAIL}" \
   --role="roles/storage.objectAdmin"
 
+echo "== granting the backend's own service account self-impersonation for signed URLs =="
+# storage_client.py's upload_playable_media (break-room music, ADR-0019)
+# signs a time-limited URL via blob.generate_signed_url() — the attachments
+# bucket has Uniform Bucket-Level Access enabled (confirmed live), which
+# disables per-object ACLs entirely, so make_public() isn't an option.
+# Signing on Cloud Run (no private key file) goes through the IAM
+# Credentials signBlob API, which requires the caller to be able to mint a
+# token AS itself.
+gcloud iam service-accounts add-iam-policy-binding "${SA_EMAIL}" \
+  --member="serviceAccount:${SA_EMAIL}" \
+  --role="roles/iam.serviceAccountTokenCreator"
+
 echo "== granting Vertex AI's service agent read access to the attachments bucket =="
 # types.Part.from_uri() (app/adk_agents/runtime.py) hands Gemini a gs:// URI
 # directly — Vertex AI reads that object as its own service identity, not as

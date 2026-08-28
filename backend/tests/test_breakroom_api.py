@@ -10,7 +10,7 @@ client = TestClient(app)
 def test_generate_music_returns_public_url():
     with (
         patch("app.api.breakroom.generate_ambient_track", return_value=b"fake-wav-bytes"),
-        patch("app.api.breakroom.upload_public_media", return_value="https://storage.googleapis.com/bucket/orgs/demo/breakroom/x.wav") as mock_upload,
+        patch("app.api.breakroom.upload_playable_media", return_value="https://storage.googleapis.com/bucket/orgs/demo/breakroom/x.wav") as mock_upload,
     ):
         response = client.post("/api/org/demo/breakroom/music")
 

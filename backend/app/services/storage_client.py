@@ -5,6 +5,7 @@ downstream (Task/Message, the Gemini turn itself via types.Part.from_uri)
 only ever holds the resulting gs:// URI, never the raw bytes.
 """
 
+from datetime import timedelta
 from functools import lru_cache
 from uuid import uuid4
 
@@ -25,14 +26,21 @@ def upload_attachment(org_id: str, mime_type: str, data: bytes) -> str:
     return f"gs://{settings.corporate_attachments_bucket}/{blob.name}"
 
 
-def upload_public_media(org_id: str, subdir: str, mime_type: str, data: bytes) -> str:
-    """Uploads to gs://{bucket}/orgs/{org_id}/{subdir}/{uuid} and makes it
-    publicly readable, returning a plain https:// URL a browser can play/
-    render directly (unlike upload_attachment's gs:// URI, which only
-    Vertex AI itself ever dereferences). Used for generated media that's
-    fine to be public by nature (e.g. break-room ambient music, ADR-0019)
-    — never for anything containing user data."""
+def upload_playable_media(org_id: str, subdir: str, mime_type: str, data: bytes) -> str:
+    """Uploads to gs://{bucket}/orgs/{org_id}/{subdir}/{uuid} and returns a
+    time-limited signed https:// URL a browser can play/render directly
+    (unlike upload_attachment's gs:// URI, which only Vertex AI itself ever
+    dereferences). Used for generated media a browser needs to fetch
+    directly (e.g. break-room ambient music, ADR-0019).
+
+    Deliberately a signed URL, not blob.make_public() — the attachments
+    bucket has Uniform Bucket-Level Access enabled (confirmed against the
+    live bucket), which disables per-object ACLs entirely; make_public()
+    would raise. Signing works under UBLA because it's IAM-based, not ACL-
+    based — requires corporate-backend-sa to hold
+    roles/iam.serviceAccountTokenCreator on ITSELF (self-impersonation, for
+    the IAM Credentials signBlob API Cloud Run's ADC needs since there's no
+    private key file here), set up once in infra/deploy/setup.sh."""
     blob = _get_bucket().blob(f"orgs/{org_id}/{subdir}/{uuid4().hex}")
     blob.upload_from_string(data, content_type=mime_type)
-    blob.make_public()
-    return blob.public_url
+    return blob.generate_signed_url(version="v4", expiration=timedelta(hours=1), method="GET")
