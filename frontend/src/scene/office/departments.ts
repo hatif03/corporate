@@ -25,8 +25,8 @@ export interface DepartmentZone {
 
 const ROOM_W = 300
 const ROOM_H = 200
-const GAP = 16 // open-plan breathing room between clusters — no wall/door tile here
-const MARGIN = 32
+const GAP = 6 // desk clusters sit close together — one continuous floor, not separate rooms
+const MARGIN = 24
 const COL_X = [MARGIN, MARGIN + ROOM_W + GAP, MARGIN + 2 * (ROOM_W + GAP)]
 const ROW_Y = [MARGIN, MARGIN + ROOM_H + GAP, MARGIN + 2 * (ROOM_H + GAP), MARGIN + 3 * (ROOM_H + GAP)]
 
@@ -48,3 +48,13 @@ export const DEPARTMENT_ZONES: DepartmentZone[] = [
 
 export const WORLD_WIDTH = COL_X[2] + ROOM_W + MARGIN
 export const WORLD_HEIGHT = ROW_Y[3] + ROOM_H + MARGIN
+
+const BREAKROOM_ZONE = DEPARTMENT_ZONES.find((z) => z.id === 'breakroom')!
+
+// Ambient "fun" gathering spot for the water-cooler social behavior
+// (OfficeFloor.tsx) — reuses the break room's own floor space rather than
+// carving out new dead space in an already-tight open floor.
+export const SOCIAL_POINT = {
+  x: BREAKROOM_ZONE.x + BREAKROOM_ZONE.width * 0.5,
+  y: BREAKROOM_ZONE.y + BREAKROOM_ZONE.height * 0.42,
+}

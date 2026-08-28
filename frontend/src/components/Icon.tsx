@@ -58,6 +58,7 @@ export type IconName =
   | 'stripe'
   | 'notion'
   | 'hubspot'
+  | 'music'
 
 interface IconDef {
   ink: string // primary color path d
@@ -227,6 +228,10 @@ const paths: Record<IconName, IconDef> = {
   hubspot: {
     accentColor: 'var(--corp-peach)',
     ink: 'M2 6h3v4H2zM5 4l6-3v14l-6-3z',
+  },
+  music: {
+    accentColor: 'var(--corp-mint)',
+    ink: 'M2 11h3v3H2zM6 2h1v9H6zM7 2h2v1H7zM8 3h1v2H8z',
   },
   crown: {
     accentColor: 'var(--corp-lemon)',

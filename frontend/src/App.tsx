@@ -197,7 +197,7 @@ function App() {
           {!focusMode && (
             <>
               <main style={{ flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden' }}>
-                <OfficeFloor agents={agents} />
+                <OfficeFloor agents={agents} orgId={ORG_ID} />
               </main>
 
               <SidebarSplitter width={sidebarWidth} onChange={updateSidebarWidth} viewportWidth={window.innerWidth} />

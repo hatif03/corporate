@@ -1,6 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Application, Assets, Container, Graphics, Sprite, Text, Texture, TilingSprite } from 'pixi.js'
-import { DEPARTMENT_ZONES, WORLD_HEIGHT, WORLD_WIDTH, type DepartmentZone } from './departments'
+import { Icon } from '../../components/Icon'
+import { generateBreakroomMusic } from '../../lib/platformClient'
+import { DEPARTMENT_ZONES, SOCIAL_POINT, WORLD_HEIGHT, WORLD_WIDTH, type DepartmentZone } from './departments'
 import {
   ART_TILE,
   BOOKSHELF_TILE,
@@ -52,11 +54,23 @@ const BOB_SPEED_IDLE = 0.05 // radians/frame
 const BOB_SPEED_ACTIVE = 0.11 // radians/frame
 const GLOW_SPEED = 0.06 // radians/frame — pulsing "at work" glow under active agents
 
+// Ambient "water cooler" social behavior: purely a client-side visual flourish
+// (no backend AgentStatus involved) — every so often, two currently-idle
+// agents get pulled to a shared spot for a few seconds with a chat-bubble
+// icon, then released back to normal idle/wander. ponytail: if an agent's
+// real status flips to active mid-chat, the visual pairing is left to just
+// run out on its own timer rather than being cancelled early — it's decorative
+// only, so the mismatch is harmless and not worth the extra bookkeeping.
+const SOCIAL_CHECK_INTERVAL = 900 // ticks (~15s at 60fps) between "should a chat start?" rolls
+const SOCIAL_DURATION_TICKS = 360 // ~6s per chat
+const SOCIAL_TRIGGER_CHANCE = 0.35
+
 interface AgentSprite {
   container: Container
   charSprite: Sprite
   statusDot: Graphics
   glow: Graphics
+  chatBubble: Graphics
   baseTarget: { x: number; y: number }
   departmentId: string
   character: string
@@ -91,7 +105,20 @@ interface AgentSprite {
  * The Pixi ticker is stopped (not the whole app) whenever the tab is
  * hidden, so an invisible canvas doesn't keep burning GPU/CPU.
  */
-export function OfficeFloor({ agents }: { agents: Agent[] }) {
+export function OfficeFloor({ agents, orgId }: { agents: Agent[]; orgId: string }) {
+  const [musicUrl, setMusicUrl] = useState<string | null>(null)
+  const [musicBusy, setMusicBusy] = useState(false)
+
+  async function playBreakroomMusic() {
+    setMusicBusy(true)
+    try {
+      const { url } = await generateBreakroomMusic(orgId)
+      setMusicUrl(url)
+    } finally {
+      setMusicBusy(false)
+    }
+  }
+
   const containerRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<Application | null>(null)
   const worldRef = useRef<Container | null>(null)
@@ -99,6 +126,7 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
   const spritesRef = useRef<Map<string, AgentSprite>>(new Map())
   const texturesRef = useRef<Map<string, Texture>>(new Map())
   const plantsRef = useRef<Sprite[]>([])
+  const socialPairsRef = useRef<Map<string, { until: number; offsetX: number }>>(new Map())
   const tickRef = useRef(0)
   const agentsRef = useRef<Agent[]>(agents)
   agentsRef.current = agents
@@ -147,11 +175,14 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
 
           const charSprite = new Sprite(textures.get(variant.idle))
           charSprite.anchor.set(0.5, 0.9)
-          charSprite.scale.set(1.4)
+          charSprite.scale.set(1.85)
           container.addChild(charSprite)
 
           const statusDot = new Graphics()
           container.addChild(statusDot)
+
+          const chatBubble = new Graphics()
+          container.addChild(chatBubble)
 
           world.addChild(container)
           sprite = {
@@ -159,6 +190,7 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
             charSprite,
             statusDot,
             glow,
+            chatBubble,
             baseTarget,
             departmentId: agent.department,
             character: agent.character,
@@ -237,30 +269,20 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
       world.addChild(baseFloor)
 
       for (const zone of DEPARTMENT_ZONES) {
-        // A soft tint fill + a single thin outline is the only thing
-        // marking one zone off from the next — no walls, no heavy border.
-        const tint = new Graphics()
-          .roundRect(zone.x, zone.y, zone.width, zone.height, 14)
-          .fill({ color: zone.color, alpha: 0.14 })
-          .stroke({ width: 1.5, color: zone.color, alpha: 0.55 })
-        world.addChild(tint)
-
-        // A small label chip (rounded pill) instead of bare text floating
-        // on the floor — reads clearly regardless of the zone tint under it.
+        // One open floor, no per-zone walls/tint/border — desk clusters
+        // just sit close together (departments.ts). A small floating label
+        // (no background chip, no outline) is the only thing marking which
+        // cluster belongs to which department, so agents can still be
+        // told apart at a glance without it reading as a separate room.
         const label = new Text({
           text: zone.displayName,
-          style: { fontFamily: 'Inter, sans-serif', fontSize: 15, fill: 0x1a1320, fontWeight: '700' },
+          style: { fontFamily: 'Inter, sans-serif', fontSize: 13, fill: 0x6b6458, fontWeight: '600' },
         })
-        label.position.set(14, 9)
-        const labelChip = new Graphics()
-          .roundRect(0, 0, label.width + 20, label.height + 14, 8)
-          .fill({ color: 0xfffdf5, alpha: 0.85 })
-        labelChip.position.set(zone.x + 12, zone.y + 10)
-        label.position.set(zone.x + 22, zone.y + 17)
-        world.addChild(labelChip)
+        label.position.set(zone.x + 14, zone.y + 10)
+        label.alpha = 0.85
         world.addChild(label)
 
-        const FURNITURE_SCALE = 1.9
+        const FURNITURE_SCALE = 2.1
 
         if (zone.kind === 'department') {
           const desk = new Sprite(texturesRef.current.get(DESK_TILE))
@@ -350,15 +372,41 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
           plant.rotation = Math.sin(tick * 0.025 + plant.position.x) * 0.06
         }
 
-        for (const sprite of spritesRef.current.values()) {
+        // Water-cooler social behavior: roll for a new chat every so often,
+        // picking two currently-idle agents at random (see the const block
+        // above this component for the tuning knobs).
+        if (tick % SOCIAL_CHECK_INTERVAL === 0 && Math.random() < SOCIAL_TRIGGER_CHANCE) {
+          const stillChatting = [...socialPairsRef.current.values()].some((p) => tick < p.until)
+          if (!stillChatting) {
+            const idleIds = [...spritesRef.current.entries()].filter(([, s]) => s.status === 'idle').map(([id]) => id)
+            if (idleIds.length >= 2) {
+              const a = idleIds[Math.floor(Math.random() * idleIds.length)]
+              let b = a
+              for (let guard = 0; guard < 5 && b === a; guard++) b = idleIds[Math.floor(Math.random() * idleIds.length)]
+              if (b !== a) {
+                const until = tick + SOCIAL_DURATION_TICKS
+                socialPairsRef.current.set(a, { until, offsetX: -12 })
+                socialPairsRef.current.set(b, { until, offsetX: 12 })
+              }
+            }
+          }
+        }
+
+        for (const [agentId, sprite] of spritesRef.current.entries()) {
           const isActive = ACTIVE_STATUSES.includes(sprite.status)
           const isIdle = sprite.status === 'idle'
-          const effectiveTarget = isIdle
-            ? (() => {
-                const wander = wanderOffset(sprite.bobPhase, tick)
-                return { x: sprite.baseTarget.x + wander.x, y: sprite.baseTarget.y + wander.y }
-              })()
-            : sprite.baseTarget
+          const social = socialPairsRef.current.get(agentId)
+          const inSocial = social && tick < social.until
+          if (social && !inSocial) socialPairsRef.current.delete(agentId)
+
+          const effectiveTarget = inSocial
+            ? { x: SOCIAL_POINT.x + social.offsetX, y: SOCIAL_POINT.y }
+            : isIdle
+              ? (() => {
+                  const wander = wanderOffset(sprite.bobPhase, tick)
+                  return { x: sprite.baseTarget.x + wander.x, y: sprite.baseTarget.y + wander.y }
+                })()
+              : sprite.baseTarget
 
           const dx = effectiveTarget.x - sprite.container.x
           const dy = effectiveTarget.y - sprite.container.y
@@ -395,6 +443,20 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
             sprite.glow
               .ellipse(0, -2, 14, 6)
               .fill({ color: STATUS_DOT_COLOR[sprite.status] ?? 0xffd93d, alpha: glowAlpha })
+          }
+
+          // Small hand-drawn speech bubble (no emoji, per this project's
+          // icon convention) over anyone currently in a water-cooler chat.
+          sprite.chatBubble.clear()
+          if (inSocial) {
+            const bobbleY = -38
+            sprite.chatBubble
+              .roundRect(-9, bobbleY - 7, 18, 12, 4)
+              .fill({ color: 0xfffdf5, alpha: 0.95 })
+              .stroke({ width: 1, color: 0x6b6458, alpha: 0.5 })
+            for (const dotX of [-4, 0, 4]) {
+              sprite.chatBubble.circle(dotX, bobbleY - 1, 1.2).fill({ color: 0x6b6458, alpha: 0.8 })
+            }
           }
         }
       })
@@ -437,5 +499,16 @@ export function OfficeFloor({ agents }: { agents: Agent[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agents])
 
-  return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      <div style={{ position: 'absolute', right: 12, bottom: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+        {musicUrl && <audio src={musicUrl} controls autoPlay style={{ height: 32 }} />}
+        <button className="corp-button" onClick={playBreakroomMusic} disabled={musicBusy} title="Generate break room music (Lyria)">
+          <Icon name="music" style={{ marginRight: 4, verticalAlign: -2 }} />
+          {musicBusy ? 'Generating…' : 'Break room music'}
+        </button>
+      </div>
+    </div>
+  )
 }
