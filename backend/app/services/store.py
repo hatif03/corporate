@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from google.api_core.exceptions import Conflict
+from google.api_core.exceptions import Conflict, NotFound
 from pydantic.alias_generators import to_camel
 
 from app.models import (
@@ -73,7 +73,17 @@ def update_agent_status(
         update["action"] = action
     if carrying is not None:
         update["carrying"] = carrying.value
-    org_doc(org_id, "agents", agent_id).update(update)
+    try:
+        org_doc(org_id, "agents", agent_id).update(update)
+    except NotFound:
+        # Every ADK LlmAgent turn fires this callback, including ephemeral
+        # workers (app/services/workers.py) whose session id is a worker id
+        # with no backing agents/{id} doc — before this fix, that NotFound
+        # crashed the turn in before_agent_callback before any tool ever
+        # ran, silently failing every spawned worker. A worker's status
+        # dot isn't shown anywhere (WorkersView reads Worker.status
+        # instead), so a no-op here is correct, not just tolerated.
+        pass
 
 
 def set_agent_paused(org_id: str, agent_id: str, paused: bool) -> None:
