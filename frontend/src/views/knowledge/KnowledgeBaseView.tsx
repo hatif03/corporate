@@ -11,6 +11,7 @@ export function KnowledgeBaseView({ orgId, agents }: { orgId: string; agents: Ag
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (departments.length > 0 && !selectedDept) setSelectedDept(departments[0].department)
@@ -32,6 +33,7 @@ export function KnowledgeBaseView({ orgId, agents }: { orgId: string; agents: Ag
   }, [orgId, selectedDept])
 
   function onFileChosen(file: File) {
+    setError(null)
     const reader = new FileReader()
     reader.onload = () => {
       if (typeof reader.result === 'string') {
@@ -39,25 +41,34 @@ export function KnowledgeBaseView({ orgId, agents }: { orgId: string; agents: Ag
         if (!title) setTitle(file.name)
       }
     }
+    reader.onerror = () => setError(`Couldn't read "${file.name}" — try pasting the text directly instead.`)
     reader.readAsText(file)
   }
 
   async function save() {
     if (!selectedDept || !title.trim() || !text.trim()) return
     setSaving(true)
+    setError(null)
     try {
       await createKnowledgeDoc(orgId, selectedDept, title.trim(), text)
       setTitle('')
       setText('')
       await refresh(selectedDept)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
     } finally {
       setSaving(false)
     }
   }
 
   async function remove(docId: string) {
-    await deleteKnowledgeDoc(orgId, selectedDept, docId)
-    await refresh(selectedDept)
+    setError(null)
+    try {
+      await deleteKnowledgeDoc(orgId, selectedDept, docId)
+      await refresh(selectedDept)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
   }
 
   return (
@@ -97,6 +108,7 @@ export function KnowledgeBaseView({ orgId, agents }: { orgId: string; agents: Ag
               {saving ? 'Saving…' : 'Upload'}
             </button>
           </div>
+          {error && <p style={{ color: 'var(--corp-coral)', fontSize: '0.85rem', margin: 0 }}>{error}</p>}
         </div>
       </div>
 

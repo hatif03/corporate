@@ -45,10 +45,12 @@ function ConnectForm({ orgId, kind, template, onConnected }: { orgId: string; ki
   const [secretValue, setSecretValue] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const needsSecret = template.auth_type !== 'none'
 
   async function connect() {
     setBusy(true)
+    setError(null)
     try {
       await createIntegration(orgId, {
         kind,
@@ -57,6 +59,8 @@ function ConnectForm({ orgId, kind, template, onConnected }: { orgId: string; ki
       })
       setSecretValue('')
       onConnected()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
     }
@@ -93,6 +97,7 @@ function ConnectForm({ orgId, kind, template, onConnected }: { orgId: string; ki
           </a>
         )}
       </div>
+      {error && <p style={{ color: 'var(--corp-coral)', fontSize: '0.85rem', margin: 0 }}>{error}</p>}
     </div>
   )
 }
@@ -103,6 +108,7 @@ function ConnectedApps({ orgId, agents }: { orgId: string; agents: Agent[] }) {
   const [integrations, setIntegrations] = useState<IntegrationConfig[]>([])
   const [requests, setRequests] = useState<AccessRequestEntry[]>([])
   const [connectingKind, setConnectingKind] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   async function refresh() {
     const [c, i, r] = await Promise.all([getIntegrationCatalog(orgId), listIntegrations(orgId), listAccessRequests(orgId)])
@@ -117,17 +123,27 @@ function ConnectedApps({ orgId, agents }: { orgId: string; agents: Agent[] }) {
   }, [orgId])
 
   async function toggleDept(integration: IntegrationConfig, deptId: string) {
+    setError(null)
     const has = integration.connectedDepartments.includes(deptId)
     const next = has
       ? integration.connectedDepartments.filter((d) => d !== deptId)
       : [...integration.connectedDepartments, deptId]
-    await updateIntegrationDepartments(orgId, integration.id, next)
-    await refresh()
+    try {
+      await updateIntegrationDepartments(orgId, integration.id, next)
+      await refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
   }
 
   async function resolve(requestId: string, approve: boolean) {
-    await resolveAccessRequest(orgId, requestId, approve)
-    await refresh()
+    setError(null)
+    try {
+      await resolveAccessRequest(orgId, requestId, approve)
+      await refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
   }
 
   const pending = requests.filter((r) => r.status === 'pending')
@@ -141,6 +157,7 @@ function ConnectedApps({ orgId, agents }: { orgId: string; agents: Agent[] }) {
           Every app this org can connect. Configured apps show which departments may call them — leaving a row's
           department list empty means unrestricted, every department may use it.
         </p>
+        {error && <p style={{ color: 'var(--corp-coral)', fontSize: '0.85rem' }}>{error}</p>}
         {Object.entries(catalog).map(([kind, template]) => {
           const integ = byKind.get(kind)
           return (
@@ -231,6 +248,8 @@ function ConnectedApps({ orgId, agents }: { orgId: string; agents: Agent[] }) {
 export function SettingsView({ orgId, agents }: { orgId: string; agents: Agent[] }) {
   const [limitInput, setLimitInput] = useState('')
   const [saved, setSaved] = useState<number | null | undefined>(undefined) // undefined = still loading
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     getSettings(orgId).then((s) => {
@@ -240,9 +259,17 @@ export function SettingsView({ orgId, agents }: { orgId: string; agents: Agent[]
   }, [orgId])
 
   async function submit() {
-    const value = limitInput.trim() === '' ? null : Number(limitInput)
-    const result = await updateSettings(orgId, value)
-    setSaved(result.dailyGeminiCallLimit)
+    setBusy(true)
+    setError(null)
+    try {
+      const value = limitInput.trim() === '' ? null : Number(limitInput)
+      const result = await updateSettings(orgId, value)
+      setSaved(result.dailyGeminiCallLimit)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -261,8 +288,8 @@ export function SettingsView({ orgId, agents }: { orgId: string; agents: Agent[]
             onChange={(e) => setLimitInput(e.target.value)}
             style={{ width: 220 }}
           />
-          <button className="corp-button" onClick={submit}>
-            Save
+          <button className="corp-button" onClick={submit} disabled={busy}>
+            {busy ? 'Saving…' : 'Save'}
           </button>
         </div>
         {saved !== undefined && (
@@ -270,6 +297,7 @@ export function SettingsView({ orgId, agents }: { orgId: string; agents: Agent[]
             Current: {saved === null ? 'using the platform fallback' : `${saved} calls/day`}
           </p>
         )}
+        {error && <p style={{ color: 'var(--corp-coral)', fontSize: '0.85rem' }}>{error}</p>}
       </div>
 
       <CapabilitiesPanel />
@@ -278,7 +306,7 @@ export function SettingsView({ orgId, agents }: { orgId: string; agents: Agent[]
   )
 }
 
-const CAPABILITIES: { icon: IconName; name: string; description: string }[] = [
+export const CAPABILITIES: { icon: IconName; name: string; description: string }[] = [
   { icon: 'brain', name: 'Gemini', description: 'Every agent’s own reasoning — via Vertex AI, never a raw API key.' },
   {
     icon: 'sparkle',

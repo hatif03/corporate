@@ -21,13 +21,17 @@ export function EditAgentModal({ orgId, agent, onClose, onSaved }: { orgId: stri
   const [character, setCharacter] = useState(agent.character)
   const [accentColor, setAccentColor] = useState(agent.accentColor)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function save() {
     setSaving(true)
+    setError(null)
     try {
       await updateAgentPersona(orgId, agent.id, { name, description, character, accent_color: accentColor })
       onSaved()
       onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
     } finally {
       setSaving(false)
     }
@@ -92,6 +96,7 @@ export function EditAgentModal({ orgId, agent, onClose, onSaved }: { orgId: stri
             <PixelButton variant="primary" fullWidth onClick={save} disabled={saving || !name.trim()}>
               {saving ? 'Saving…' : 'Save'}
             </PixelButton>
+            {error && <p style={{ color: 'var(--corp-coral)', fontSize: 'var(--corp-text-body-sm)', margin: 0 }}>{error}</p>}
           </div>
         </PixelPanel>
       </div>

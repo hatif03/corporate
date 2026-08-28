@@ -225,6 +225,18 @@ export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent 
           <span style={{ fontStyle: 'italic' }}>{agent.voice}</span>
         </p>
       )}
+      {agent.goal && (
+        <p
+          className="corp-text-muted"
+          style={{ margin: 0, marginTop: -6, fontSize: '0.85rem', flexShrink: 0, display: 'flex', gap: 6, alignItems: 'baseline' }}
+        >
+          <strong style={{ fontStyle: 'normal', flexShrink: 0 }}>Current goal:</strong>
+          <span>{agent.goal}</span>
+        </p>
+      )}
+      <p className="corp-text-muted" style={{ margin: 0, marginTop: -6, fontSize: '0.8rem', flexShrink: 0 }}>
+        running on {agent.provider} · {agent.model}
+      </p>
 
       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
         <button

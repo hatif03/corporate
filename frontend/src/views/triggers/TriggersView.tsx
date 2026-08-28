@@ -36,7 +36,28 @@ const AUTONOMOUS_TRIGGER_IDS = new Set(['trig-ceo-self-check', 'trig-ceo-memory-
 
 function TriggerRow({ orgId, t }: { orgId: string; t: Trigger }) {
   const [showHistory, setShowHistory] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const isAutonomous = AUTONOMOUS_TRIGGER_IDS.has(t.id)
+
+  async function toggle() {
+    setError(null)
+    try {
+      await toggleTrigger(orgId, t.id, !t.enabled)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function remove() {
+    if (!window.confirm(`Delete trigger "${t.name}"? This can't be undone.`)) return
+    setError(null)
+    try {
+      await deleteTrigger(orgId, t.id)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   return (
     <div className="corp-divider-row">
       <strong>{t.name}</strong> <span className="corp-badge" style={{ background: 'var(--corp-sky-light)' }}>{t.type}</span>
@@ -53,21 +74,17 @@ function TriggerRow({ orgId, t }: { orgId: string; t: Trigger }) {
         <div className="corp-text-muted" style={{ fontSize: '0.75rem' }}>secret: {t.webhookSecret}</div>
       )}
       <div style={{ marginTop: 4, display: 'flex', gap: 8 }}>
-        <button className="corp-button" onClick={() => toggleTrigger(orgId, t.id, !t.enabled)}>
+        <button className="corp-button" onClick={() => void toggle()}>
           {t.enabled ? 'Disable' : 'Enable'}
         </button>
-        <button
-          className="corp-button"
-          onClick={() => {
-            if (window.confirm(`Delete trigger "${t.name}"? This can't be undone.`)) void deleteTrigger(orgId, t.id)
-          }}
-        >
+        <button className="corp-button" onClick={() => void remove()}>
           Delete
         </button>
         <button className="corp-button" onClick={() => setShowHistory((s) => !s)}>
           {showHistory ? 'Hide history' : 'History'}
         </button>
       </div>
+      {error && <p style={{ color: 'var(--corp-coral)', fontSize: '0.8rem', margin: '4px 0 0' }}>{error}</p>}
       {showHistory && (
         <div style={{ marginTop: 6 }}>
           <TriggerHistoryList orgId={orgId} triggerId={t.id} />
@@ -84,19 +101,29 @@ export function TriggersView({ orgId }: { orgId: string }) {
   const [targetAgent, setTargetAgent] = useState('engineering_sre')
   const [payloadTemplate, setPayloadTemplate] = useState('{payload}')
   const [cron, setCron] = useState('0 * * * *')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => watchTriggers(orgId, setTriggers), [orgId])
 
   async function submit() {
     if (!name.trim()) return
-    await createTrigger(orgId, {
-      name,
-      type,
-      target_agent: targetAgent,
-      payload_template: payloadTemplate,
-      cron: type === 'schedule' ? cron : undefined,
-    })
-    setName('')
+    setBusy(true)
+    setError(null)
+    try {
+      await createTrigger(orgId, {
+        name,
+        type,
+        target_agent: targetAgent,
+        payload_template: payloadTemplate,
+        cron: type === 'schedule' ? cron : undefined,
+      })
+      setName('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -125,10 +152,11 @@ export function TriggersView({ orgId }: { orgId: string }) {
           />
         </div>
         <div style={{ marginTop: 8 }}>
-          <button className="corp-button" onClick={submit}>
-            Add
+          <button className="corp-button" onClick={submit} disabled={busy}>
+            {busy ? 'Adding…' : 'Add'}
           </button>
         </div>
+        {error && <p style={{ color: 'var(--corp-coral)', fontSize: '0.85rem' }}>{error}</p>}
       </div>
 
       <div className="corp-panel">

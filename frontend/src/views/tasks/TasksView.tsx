@@ -15,10 +15,14 @@ function TaskCard({ task }: { task: Task }) {
   const verified = task.result?.verified
   return (
     <div className="corp-panel" style={{ marginBottom: 8 }}>
-      <strong>{task.title}</strong>
+      <strong>{task.title}</strong>{' '}
+      <span className="corp-badge" style={{ background: 'var(--corp-sky-light)' }}>{task.taskType}</span>
       <div className="corp-text-muted" style={{ fontSize: '0.85rem' }}>
         {task.assignee ?? 'unassigned'} · priority {task.priority}
       </div>
+      {task.description && (
+        <p style={{ fontSize: '0.85rem', margin: '4px 0 0' }}>{task.description}</p>
+      )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
         {task.hasPendingHumanQa && (
           <span className="corp-badge" style={{ background: 'var(--status-blocked)' }}>
