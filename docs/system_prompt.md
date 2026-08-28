@@ -103,6 +103,13 @@ Granting org membership is currently manual (`scripts/seed.py --owner-uid <uid>`
 - `.env.example` documents every required environment variable with placeholder values; real `.env` files are gitignored.
 - The integration broker (`app/services/integration_broker.py`) is the only module where a secret is ever dereferenced to its real value.
 
+## Additional Vertex AI integrations (ADR-0017–0020)
+
+- **Realtime voice** (ADR-0017): `app/api/voice.py`'s `/ws/voice/{org_id}` WebSocket is a backend-held relay to Vertex AI's Live API (`client.aio.live.connect()`) — the only legitimate shape, since Vertex's Live API has no ephemeral-token path and a browser can never hold the credential directly. v1 scope is a voice conversation with the CEO's persona, not yet wired to its tools.
+- **OAuth "Connect with X"** (ADR-0018): `app/services/oauth_providers.py`'s per-provider adapters (Slack/GitHub/Notion) plus `app/api/oauth.py`'s `start`/`callback` routes — an alternative on-ramp to the same `store_secret()`/`call_integration()` path a manually-pasted token already uses, not a separate credential-handling mechanism.
+- **Veo, Lyria, and the independent-review verifier tier** (ADR-0019): `app/services/veo_client.py` (promo video), `app/services/lyria_client.py` (break-room music), and `shared/cross_model_check.py` (a second, independent Gemini call reviewing a department's own claim before it's trusted) — all reconfirmed live against this project's actual Vertex AI access before their model ids were set, not assumed from Model Garden's docs.
+- **Gemini 3.5 (ADR-0020)**: `corporate_gemini_model`/`corporate_gemini_model_pro`/`corporate_verifier_model` (`app/config.py`) are pinned to `gemini-3.5-flash`/`gemini-3.1-pro-preview`/`gemini-3.5-flash-lite` — live-verified against this project's Vertex AI access, same discipline as every other model id in this section. Reconfirm the same way (not from docs alone) before ever changing these.
+
 ## Testing
 
 - Every department ships `tests/test_<dept_id>_smoke.py` — at minimum, one call through `on_task_received` with a representative task and an assertion on the writeback.

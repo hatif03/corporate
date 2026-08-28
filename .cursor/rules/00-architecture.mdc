@@ -26,7 +26,7 @@ Corporate is a hosted, cloud-native multi-agent web app: a 2D office-floor UI wh
 
 - One language for the whole backend: Python. No department introduces a second language or agent framework.
 - Pin `google-adk==2.7.1`. Requires Python 3.11+. Don't mix ADK 1.x and 2.x session/storage data.
-- The only LLM in the shipped product is Gemini via Vertex AI. No other provider, no raw API key.
+- The only LLM in the shipped product is Gemini via Vertex AI. No other provider, no raw API key. Reasoning models are pinned to Gemini 3.5 (flash/flash-lite, 3.1-pro-preview escalation tier) — live-verify against this project's real Vertex AI access before ever changing these, never from docs alone (ADR-0020). Voice (Live API relay, ADR-0017), OAuth "Connect apps" (ADR-0018), and Veo/Lyria generation (ADR-0019) are also live.
 - Agents are `LlmAgent`/`SequentialAgent`/`ParallelAgent`/`LoopAgent`. Use workflow-agent composition only *within* one department's own pipeline — CEO-to-department delegation goes over Pub/Sub, never `sub_agents=`.
 - Sessions are Firestore-backed (`FirestoreSessionService`), never `InMemorySessionService` — Cloud Run instances are ephemeral.
 

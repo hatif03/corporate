@@ -83,6 +83,19 @@ panels, AI-engine/MCP settings, Electron-only window chrome).
 |---|---|---|---|
 | Design system + UI components (colors, type, spacing, shadows, animation, layout, icons) | chaitanyagiri | MIT | https://github.com/chaitanyagiri/munder-difflin |
 
+## Office-floor tileset
+
+The office floor's tiles (walls, doors, corridor floors, plants, the
+bookshelf) come from Kenney's "1-Bit Pack" (`frontend/src/assets/kenney/
+one_bit_pack_extracted/`), rearranged into Corporate's own 3×3
+room-and-corridor layout — not the source repo's own layout. Mentioned in
+prose in `docs/PROJECT_HISTORY.md` already; listed here too since this is
+the canonical attribution file.
+
+| Source | Author | License | Link |
+|---|---|---|---|
+| 1-Bit Pack tileset | Kenney | CC0 (public domain) | https://kenney.nl/assets/1-bit-pack |
+
 ## Agent loop hardening
 
 `backend/app/adk_agents/runtime.py`'s doom-loop guard/per-turn tool-call cap

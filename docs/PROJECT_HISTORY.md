@@ -425,6 +425,23 @@ admin-config toggle buried in a form.
   snippet, pending a real sandboxed-write audit design that doesn't exist
   yet.
 
+## Voice, OAuth connect, and the Gemma-to-Gemini-tier correction
+
+Three more real features landed after the layout/capability overhaul above, each with its own ADR:
+
+- **Realtime voice** (ADR-0017): studying the reference app's own voice feature (a second LLM provider's Realtime API) led to real research into whether Vertex AI has an equivalent — confirmed yes, `client.aio.live.connect()`, GA, ADC-authenticated, no new provider needed. The hard constraint that shaped the whole design: Vertex's Live API has no ephemeral-token path, so a browser can never hold the credential directly — the backend has to be a real WebSocket relay, holding ADC credentials and piping raw PCM audio both ways, never handing anything else to the browser. v1 scope is deliberately a voice *conversation* with the CEO's persona, not yet wired to its actual tools (`create_task` etc.) — that needs `Runner.run_live`/`LiveRequestQueue`, seen in ADK's own source but not independently verified this pass, so it was left as a real follow-up rather than shipped unverified.
+- **OAuth "Connect with X"** (ADR-0018) for Slack, GitHub, and Notion — replacing "paste a raw token" with a real consent-screen flow. Real per-provider research surfaced genuine transport differences (form-POST vs. JSON-body client-secret submission) that made one shared OAuth helper actively wrong, so each provider got its own small adapter instead. Surfaced and fixed a real pre-existing bug along the way: `call_integration()` only ever attached an `Authorization` header for `BEARER`-type credentials — `OAUTH2` silently fell through with no header at all, meaning every OAuth-connected integration would have been silently broken had this not been caught.
+- **Gemma, Veo, Lyria via Vertex AI** (ADR-0019) — the hackathon's bonus-model scoring calls out Gemma/Veo/Lyria by name, and a cross-model "second opinion" checker was independently wanted for hallucination mitigation on top of the existing citation-grounding check. Live-testing (not trusting Model Garden's docs) found Gemma unreachable in this project at any tier — every variant's card showed only a paid, self-hosted "Deploy model" button, never the zero-deployment MaaS path the ADR assumed, and the same was true of every other open-model alternative tried (Llama, Mistral, Codestral, Jamba). Self-hosting a GPU endpoint for one aspect checker was explicitly rejected given the deadline. The independent-review checker shipped anyway, just on a distinct Gemini tier instead of Gemma — still a genuinely separate model call with fresh context, just not a different vendor, and the ADR says so plainly rather than quietly dropping the "cross-model" framing. Veo and Lyria, by contrast, were confirmed fully live-working — including catching a wrong field name in Lyria's response parsing that a search-engine-summarized "verified" example had gotten wrong.
+
+## Hackathon submission push — eligibility, full observability, and going live
+
+With the 2026-08-31 deadline three days out, a submission-readiness pass turned up one hard, previously-unnoticed problem and a real, previously-undiscovered production bug, alongside the frontend/documentation polish that had been explicitly requested:
+
+- **Gemini 3.5 eligibility** (ADR-0020): re-reading the hackathon's own rules directly (not from memory) surfaced a hard requirement — "Gemini 3.5 or newer" — that this project's 2.5-tier default models didn't meet. Same live-testing discipline as the Gemma correction above: `client.models.list()` against this project's real Vertex AI access found `gemini-3.5-flash`/`gemini-3.5-flash-lite`/`gemini-3.1-pro-preview` all reachable (3.5 Pro has no public model id anywhere yet), but only at Vertex's `global` location — the 2.5-tier models this project already used are pinned to `us-central1`. Reading ADK's own installed source (`google.adk.models.google_llm.Gemini.api_client`) showed it never passes an explicit location at all, and `google.genai`'s own client already silently defaults to `global` whenever `GOOGLE_CLOUD_LOCATION` is unset — which it always has been here — so the region mismatch that looked like it might need new plumbing turned out to need zero code change beyond the model id strings themselves, confirmed with a real end-to-end ADK turn before committing any of it.
+- **A real, previously-undiscovered production bug**: auditing whether ephemeral workers' execution was visible anywhere in the frontend led to reading `update_agent_status`'s Firestore call closely enough to notice it does an `.update()` — which throws `NotFound` on a document that was never created. Every worker's session id doubles as its "agent id" for the shared ADK callback mechanism, but a worker never gets a real `agents/{id}` document the way a registered department agent does. `before_agent_callback` fires this call on literally the first thing that happens in any agent turn — meaning every single `spawn_worker`/`spawn_worker_and_await` call had been failing in production, silently, since the feature shipped. Confirmed live against real Firestore both ways (the bug reproduced with the old code, the fix resolved it) before committing. The fix is a one-line `except NotFound: pass` in the one function every agent-status update already goes through — not a new agents-collection doc for every ephemeral worker, which would have polluted the persistent-agent roster the office floor renders.
+- **Full observability build-out**: per-aspect verification votes (which checker passed/failed and why — previously computed by `vote_aspects()` and then thrown away by every caller) now persist onto `task.result`; ephemeral workers' execution trace turned out to already exist for free (the same NotFound-doc discovery above meant the trace subcollection write — a Firestore subcollection `.add()`, which doesn't require its parent document to exist — was reachable all along; it just needed a frontend panel); a live audit hash-chain integrity badge; a new Board tab for the CEO's shared blackboard collection, which had zero frontend surface before this; and previously-invisible fields (task model tier/attachment/timestamps, agent session turn count) surfaced across the existing views.
+- **A public landing page**, service-health indicators (a connection-lost banner when any Firestore listener drops, a polling status dot against the now-real `/api/healthz`), and a backend-wide error-handling audit (a global exception handler, timeouts and clean failure modes added to every external call this project makes) — the frontend/production-readiness asks that kicked off this whole push, addressed alongside the eligibility and bug fixes above once those took priority.
+
 ## What we chose to let go — the full list in one place
 
 Everything below was seriously considered at some point and deliberately
@@ -475,10 +492,13 @@ Engineering & SRE, Legal & Risk, Office of the CEO, Sales & CRM (also
 A2A-exposed), HR & People Ops, Customer Support, Marketing & Comms, and
 Product & Data Analytics. The full Command Center tab set is implemented
 (Monitor, Tasks, Ask-me, Activity, Triggers, Workers, Memory, Knowledge,
-Graph, Settings, Commands), plus a real 3×3 office floor with personas,
-per-department integration access control, an org-uploadable knowledge
-base, sub-agent spawning, and a sandboxed multi-tool orchestration path.
-158 backend tests and a clean frontend build/lint pass as of this writing.
+Board, Graph, Settings, Commands), plus a real 3×3 office floor with
+personas, per-department integration access control, an org-uploadable
+knowledge base, sub-agent spawning, a sandboxed multi-tool orchestration
+path, realtime voice, OAuth "Connect apps," Veo/Lyria generation, and a
+public landing page. **Live**, deployed against a real GCP project — see
+`README.md`'s Status section for the current URLs. 228+ backend tests and
+a clean frontend build/lint pass as of this writing.
 
 Known open items, not hidden: the `SequentialAgent`→`Workflow` migration
 (ADR-0009), retry-with-backoff for transient Gemini errors (ADR-0011),

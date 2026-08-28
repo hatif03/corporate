@@ -24,17 +24,22 @@ flowchart TB
         PubSub["Pub/Sub<br/>agent-bus topic<br/>+ one push subscription per agent"]
         Scheduler["Cloud Scheduler<br/>fires schedule-type triggers"]
         SecretMgr["Secret Manager<br/>third-party API credentials"]
-        Vertex["Vertex AI<br/>Gemini + text-embedding-004"]
+        Vertex["Vertex AI<br/>Gemini 3.5 flash/flash-lite + 3.1-pro-preview<br/>+ text-embedding-004"]
+        VertexLive["Vertex AI Live API<br/>gemini-live-2.5-flash-native-audio"]
+        Veo["Veo 3.1<br/>promo video generation"]
+        Lyria["Lyria 002<br/>break-room music"]
     end
 
     subgraph External["External"]
         ThirdParty["Slack / Jira / GitHub /<br/>Stripe / Notion / HubSpot"]
+        OAuthProviders["Slack / GitHub / Notion<br/>OAuth \"Connect apps\""]
         A2ACaller["External A2A caller<br/>(partner agent, Gemini Enterprise, ...)"]
     end
 
     FE -- "sign in" --> Auth
     FE -- "onSnapshot (reads)" --> Firestore
     FE -- "REST + Bearer ID token (writes)" --> Backend
+    FE -- "WebSocket /ws/voice/{orgId}" --> Backend
     Hosting -. "serves" .-> FE
 
     Backend -- "verify token + org membership" --> Auth
@@ -42,8 +47,12 @@ flowchart TB
     Backend -- "publish_message()" --> PubSub
     PubSub -- "push /internal/agent-turn/{agentId}" --> Backend
     Backend -- "Gemini calls + embeddings" --> Vertex
+    Backend -- "relays audio via client.aio.live.connect()" --> VertexLive
+    Backend -- "generate_videos()" --> Veo
+    Backend -- "predict (music)" --> Lyria
     Backend -- "call_integration()" --> SecretMgr
     Backend -- "authenticated API calls" --> ThirdParty
+    Backend -- "OAuth code exchange" --> OAuthProviders
     Scheduler -- "/internal/triggers/{org}/{id}/fire" --> Backend
 
     A2ACaller -- "/.well-known/agent-card.json<br/>+ A2A task requests" --> A2AServer
@@ -60,7 +69,7 @@ flowchart TB
 | **Standalone A2A server** (`app/a2a_server.py`) | A second Cloud Run service exposing the Sales & CRM department's ADK agent tree over the A2A protocol at its own `/.well-known/agent-card.json` — deliberately separate from the main backend so that well-known route sits at the service's own root, per the A2A spec (ADR-0004). |
 | **Firestore** | All durable state, namespaced `orgs/{orgId}/...`: agents, tasks, messages (Pub/Sub mirror), per-agent memory (with embeddings), activity log, triggers, workers, integrations, members, audit log. |
 | **Pub/Sub** | A single `agent-bus` topic; one push subscription per agent, filtered by `to` attribute. `publish_message()` is the sole chokepoint for hop-count/loop prevention and `requires_reply` derivation (ADR-0003). |
-| **Vertex AI** | Gemini (`gemini-2.5-flash` by default, configurable) for every department's reasoning, and `text-embedding-004` for semantic memory search. |
+| **Vertex AI** | Gemini (`gemini-3.5-flash` by default, `gemini-3.1-pro-preview` for the escalated "pro" tier, `gemini-3.5-flash-lite` for independent review — ADR-0020) for every department's reasoning, `text-embedding-004` for semantic memory search, `gemini-live-2.5-flash-native-audio` for the realtime voice relay, plus Veo (video) and Lyria (music) generation. |
 | **Secret Manager** | The only place a third-party credential (Slack token, Stripe key, etc.) exists as plaintext — dereferenced exclusively by `integration_broker.py`. |
 | **Cloud Scheduler** | Fires schedule-type triggers by calling `/internal/triggers/{org_id}/{trigger_id}/fire`. |
 | **Firebase Auth + Hosting** | Google sign-in for end users; static hosting for the built frontend, with rewrites to the Cloud Run backend for `/api/**` and `/internal/**`. |
@@ -91,6 +100,6 @@ Two shared, cross-cutting utilities back several of these: `shared/audit_chain.p
 - **A2A used narrowly** (ADR-0004): the external attack surface (Sales & CRM's A2A endpoint) is a separate, deliberately isolated service from the internal Pub/Sub fabric — internal messaging never crosses that boundary.
 - **Mechanism, not LLM judgment**, for anything security- or loop-relevant: hop-cap and reply-obligation derivation in `publish_message()`, the `pricing_guardrail` hard cap, and Slack notification triggering are all deterministic Python, never something an LLM decides on its own.
 
-## What's not yet deployed
+## Current status
 
-As of this document, the system has not been deployed against a live GCP project (billing was pending on the available accounts during development) — every claim above is backed by 68 passing backend tests that mock Firestore/Pub-Sub/Gemini/Secret Manager, plus a live HTTP round-trip test against the A2A server's Agent Card endpoint. See `/infra/deploy/setup.sh` and `/infra/deploy/deploy.sh` for the exact commands that will stand this up once billing clears.
+Live, deployed against a real GCP project: backend at [corporate-backend-2wv6ilt7fa-uc.a.run.app](https://corporate-backend-2wv6ilt7fa-uc.a.run.app/api/healthz), frontend at [project-f0b6b4ce-541f-43ff-9f7.web.app](https://project-f0b6b4ce-541f-43ff-9f7.web.app), Sales & CRM's A2A agent card at [corporate-a2a-sales-2wv6ilt7fa-uc.a.run.app/.well-known/agent-card.json](https://corporate-a2a-sales-2wv6ilt7fa-uc.a.run.app/.well-known/agent-card.json). Every claim above is backed by 228+ passing backend tests (mocking Firestore/Pub-Sub/Gemini/Secret Manager) plus live round-trip verification against real Vertex AI, real Firestore, and the deployed A2A server. See `/infra/deploy/setup.sh` and `/infra/deploy/deploy.sh` for the exact deploy commands — both are idempotent and safe to re-run.
