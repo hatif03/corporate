@@ -262,6 +262,25 @@ def delete_trigger(org_id: str, trigger_id: str) -> None:
     org_doc(org_id, "triggers", trigger_id).delete()
 
 
+# ---- pending Veo video-generation operations (ADR-0019) ------------------
+# orgs/{orgId}/veo_operations/{taskId} — keyed by task id (not a random id)
+# so there's at most one pending operation per task. Polled by
+# app/api/veo.py's internal endpoint; app/services/veo_client.py never
+# touches Firestore directly, this is the only module that does.
+
+
+def create_veo_operation(org_id: str, task_id: str, operation_name: str) -> None:
+    org_doc(org_id, "veo_operations", task_id).set({"operationName": operation_name, "createdAt": _now()})
+
+
+def list_veo_operations(org_id: str) -> list[dict]:
+    return [{"taskId": d.id, **d.to_dict()} for d in org_collection(org_id, "veo_operations").stream()]
+
+
+def delete_veo_operation(org_id: str, task_id: str) -> None:
+    org_doc(org_id, "veo_operations", task_id).delete()
+
+
 # ---- workers ------------------------------------------------------------
 
 

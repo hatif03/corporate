@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import access_requests, agents, audit, breakroom, integrations, internal, knowledge_base, memory, oauth, org, triggers, voice, workers
+from app.api import access_requests, agents, audit, breakroom, integrations, internal, knowledge_base, memory, oauth, org, triggers, veo, voice, workers
 from app.config import settings
 from app.services.auth import require_internal_oidc, require_org_member
 
@@ -51,6 +51,7 @@ app.add_middleware(
 # doesn't, so it's added here.
 app.include_router(internal.router)
 app.include_router(triggers.internal_router, dependencies=[Depends(require_internal_oidc)])
+app.include_router(veo.internal_router, dependencies=[Depends(require_internal_oidc)])
 
 # Every /api/org/{org_id}/* router requires the caller to be an
 # authenticated, verified member of that org — wired once here at the

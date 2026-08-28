@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     # id against Model Garden at deploy time — same drift risk
     # app/api/voice.py's own VOICE_MODEL constant already documents.
     corporate_lyria_model: str = "lyria-002"
+
+    # Marketing promo-video generation (app/services/veo_client.py, ADR-0019)
+    # — reconfirm against Model Garden at deploy time, same drift risk noted
+    # for corporate_gemma_model/corporate_lyria_model above.
+    corporate_veo_model: str = "veo-3.1-generate-001"
     corporate_default_org_id: str = "demo"
     corporate_pubsub_topic: str = "agent-bus"
     corporate_backend_url: str = ""
