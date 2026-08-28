@@ -1,10 +1,16 @@
-"""Runtime cross-model hallucination check: an independent second model
-(Gemma, via Vertex AI's fully-managed MaaS API — same project/location/ADC
-as every other Vertex call in this app, no self-hosted GPU endpoint needed)
-judges the same claim Gemini already produced, as one more AspectChecker in
-the existing vote_aspects fan-out (shared/verification.py, ADR-0007) —
-genuine cross-model consensus, not just more Gemini checking Gemini. See
-docs/adr/0019-gemma-veo-lyria-vertex-ai-expansion.md.
+"""Runtime cross-model-style hallucination check: an independent second
+model call judges the same claim the primary generation already produced,
+as one more AspectChecker in the existing vote_aspects fan-out (shared/
+verification.py, ADR-0007) — a genuinely separate call (fresh context, no
+shared state with the primary generation), not just re-asking the same
+model the same question in the same turn. See
+docs/adr/0019-gemma-veo-lyria-vertex-ai-expansion.md for the full history:
+this was originally spec'd as Gemma, live-tested against this project's
+real Vertex AI, and swapped for a distinct Gemini tier
+(corporate_verifier_model) after confirming Gemma requires a paid
+self-hosted GPU endpoint in this project — not the free serverless call
+originally assumed. Still a real second opinion, just not a different
+vendor.
 
 Deliberately NOT an "auto-fix on disagreement" loop: a failed vote flows
 into the exact same @audited_task BLOCKED/HumanQA path every other
@@ -33,26 +39,27 @@ _PROMPT = (
 )
 
 
-async def _ask_gemma(description: str) -> bool:
+async def _ask_verifier(description: str) -> bool:
     client = genai.Client(vertexai=True, project=settings.google_cloud_project, location=settings.vertex_location)
     response = await client.aio.models.generate_content(
-        model=settings.corporate_gemma_model, contents=_PROMPT.format(claim=description)
+        model=settings.corporate_verifier_model, contents=_PROMPT.format(claim=description)
     )
     return (response.text or "").strip().lower().startswith("yes")
 
 
-def make_gemma_checker(aspect_name: str, describe: Callable[[dict], str]) -> AspectChecker:
+def make_verifier_checker(aspect_name: str, describe: Callable[[dict], str]) -> AspectChecker:
     """Returns an AspectChecker for vote_aspects. `describe(claim)` renders
     the department's existing claim dict as a short plain-English
-    description for Gemma to review — built from fields the claim already
-    has, no new fields needed on any department's claim-construction code."""
+    description for the independent reviewer — built from fields the claim
+    already has, no new fields needed on any department's claim-construction
+    code."""
 
     async def checker(claim: dict) -> AspectVote:
         description = describe(claim)
         try:
-            passed = await _ask_gemma(description)
+            passed = await _ask_verifier(description)
         except Exception as exc:  # noqa: BLE001 - see module docstring: failure counts as "no", not a crash
-            return AspectVote(aspect_name, passed=False, reason=f"gemma check failed: {exc}")
+            return AspectVote(aspect_name, passed=False, reason=f"independent review call failed: {exc}")
         reason = "independent model review: plausible" if passed else "independent model review: flagged as inconsistent"
         return AspectVote(aspect_name, passed=passed, reason=reason)
 

@@ -5,7 +5,7 @@ in agents.py's finalize step: {"invoice": ..., "signals": ..., "amount": ...}.
 
 from __future__ import annotations
 
-from shared.cross_model_check import make_gemma_checker
+from shared.cross_model_check import make_verifier_checker
 from shared.verification import AspectVote
 
 TOLERANCE = 0.01
@@ -33,7 +33,7 @@ async def schema_consistency(claim: dict) -> AspectVote:
     )
 
 
-def _describe_for_gemma(claim: dict) -> str:
+def _describe_for_verifier(claim: dict) -> str:
     invoice = claim["invoice"]
     return (
         f"An invoice was extracted with vendor={invoice.get('vendor')!r}, "
@@ -45,5 +45,5 @@ def _describe_for_gemma(claim: dict) -> str:
 ASPECTS = {
     "numerical_consistency": numerical_consistency,
     "schema_consistency": schema_consistency,
-    "gemma_cross_check": make_gemma_checker("gemma_cross_check", _describe_for_gemma),
+    "independent_review": make_verifier_checker("independent_review", _describe_for_verifier),
 }

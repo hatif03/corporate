@@ -282,8 +282,8 @@ const CAPABILITIES: { icon: IconName; name: string; description: string }[] = [
   { icon: 'brain', name: 'Gemini', description: 'Every agent’s own reasoning — via Vertex AI, never a raw API key.' },
   {
     icon: 'sparkle',
-    name: 'Gemma',
-    description: 'A second, independent model that double-checks Finance & Audit and Engineering & SRE’s claims before they’re trusted — see the “independently verified” badge on their tasks.',
+    name: 'Independent review',
+    description: 'A separate model call double-checks Finance & Audit and Engineering & SRE’s claims before they’re trusted — see the “independently verified” badge on their tasks.',
   },
   { icon: 'music', name: 'Lyria', description: 'Generates the office’s break-room music, on demand or when agents meet at the water cooler.' },
   { icon: 'image', name: 'Veo', description: 'Marketing & Comms can generate a short promo video alongside its copy — just ask for one in the brief.' },

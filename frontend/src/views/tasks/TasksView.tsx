@@ -10,8 +10,8 @@ const COLUMNS: { status: TaskStatus; label: string }[] = [
 
 function TaskCard({ task }: { task: Task }) {
   // finance_audit/engineering_sre already return this (shared/verification.py
-  // + the Gemma cross-model checker, ADR-0019) — the data existed before now,
-  // this is the first time it's actually rendered anywhere.
+  // + the independent-review checker, ADR-0019) — the data existed before
+  // now, this is the first time it's actually rendered anywhere.
   const verified = task.result?.verified
   return (
     <div className="corp-panel" style={{ marginBottom: 8 }}>
@@ -29,7 +29,7 @@ function TaskCard({ task }: { task: Task }) {
           <span
             className="corp-badge"
             style={{ background: verified ? 'var(--corp-mint-light)' : 'var(--corp-coral)' }}
-            title={verified ? 'Passed deterministic checks and an independent Gemma model review' : 'An independent Gemma model review flagged this'}
+            title={verified ? 'Passed deterministic checks and an independent model review' : 'An independent model review flagged this'}
           >
             {verified ? '✓ independently verified' : '⚠ independent review flagged'}
           </span>

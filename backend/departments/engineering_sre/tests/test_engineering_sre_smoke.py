@@ -5,8 +5,8 @@ from app.models import Task, TaskStatus
 from departments.engineering_sre.agents import on_task_received
 
 
-def _gemma_answers(text: str):
-    """The gemma_cross_check aspect checker (shared/cross_model_check.py,
+def _verifier_answers(text: str):
+    """The independent_review aspect checker (shared/cross_model_check.py,
     ADR-0019) makes a real Vertex AI call unless patched."""
     return patch(
         "shared.cross_model_check.genai.Client",
@@ -49,7 +49,7 @@ async def test_low_severity_incident_does_not_need_human():
         patch("app.services.store.log_activity"),
         patch("shared.audit_chain.append_entry"),
         patch("app.services.pubsub_client.publish_message"),
-        _gemma_answers("yes"),
+        _verifier_answers("yes"),
     ):
         result = await on_task_received("org-test", task)
 
@@ -77,7 +77,7 @@ async def test_high_severity_incident_flags_human_review():
         patch("app.services.pubsub_client.publish_message"),
         patch("departments.engineering_sre.agents.notify_slack_channel", new=AsyncMock(return_value={"posted": True})) as mock_notify,
         patch("departments.engineering_sre.agents.create_jira_ticket", new=AsyncMock(return_value={"filed": True})) as mock_jira,
-        _gemma_answers("yes"),
+        _verifier_answers("yes"),
     ):
         result = await on_task_received("org-test", task)
 
@@ -126,7 +126,7 @@ async def test_internally_inconsistent_triage_cascade_is_flagged_unverified():
         # as suspicious to an independent reviewer too, not just this
         # department's own deterministic checker — "no" here is thematically
         # consistent, not just a value chosen to keep the test passing.
-        _gemma_answers("no"),
+        _verifier_answers("no"),
     ):
         result = await on_task_received("org-test", task)
 
@@ -152,7 +152,7 @@ async def test_low_severity_incident_does_not_notify_slack():
         patch("shared.audit_chain.append_entry"),
         patch("app.services.pubsub_client.publish_message"),
         patch("departments.engineering_sre.agents.notify_slack_channel", new=AsyncMock()) as mock_notify,
-        _gemma_answers("yes"),
+        _verifier_answers("yes"),
     ):
         await on_task_received("org-test", task)
 

@@ -13,12 +13,16 @@ class Settings(BaseSettings):
     # calling create_task — see ADR-0013 and app/adk_agents/factory.py's
     # build_tiered_stage_agents().
     corporate_gemini_model_pro: str = "gemini-2.5-pro"
-    # Independent second model for runtime cross-model hallucination checking
-    # (shared/cross_model_check.py, ADR-0019) — fully-managed/serverless on
-    # Vertex AI MaaS, same project/location/ADC as everything else, no
-    # self-hosted GPU endpoint needed. Deliberately a different model
-    # family, not another Gemini tier — the point is an independent judge.
-    corporate_gemma_model: str = "gemma-3-27b-it"
+    # Independent second opinion for runtime hallucination checking
+    # (shared/cross_model_check.py, ADR-0019). Originally spec'd as Gemma —
+    # live-tested against this project's real Vertex AI and confirmed every
+    # Gemma/Llama/Mistral variant 404s here; Model Garden shows "Deploy
+    # model" (a paid, self-hosted GPU endpoint) as the only option for
+    # Gemma in this project, not the serverless MaaS path assumed in ADR-0019.
+    # Swapped for a distinct Gemini tier instead — a genuinely separate
+    # model call (fresh context, no shared state with the primary
+    # generation), just not a different vendor.
+    corporate_verifier_model: str = "gemini-2.5-flash-lite"
 
     # Break-room ambient music (app/services/lyria_client.py, ADR-0019) — no
     # Python SDK method for Lyria yet (confirmed: google-genai's Models
