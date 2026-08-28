@@ -4,6 +4,7 @@ contract Finance & Audit uses for its numerical/schema checks. Claim shape:
 
 from __future__ import annotations
 
+from shared.cross_model_check import make_verifier_checker
 from shared.verification import AspectVote
 
 # Overclaim language legal/brand guidelines don't want in outbound copy —
@@ -31,7 +32,12 @@ async def has_call_to_action(claim: dict) -> AspectVote:
     return AspectVote("has_call_to_action", passed=found, reason="CTA present" if found else "no clear CTA found")
 
 
+def _describe_for_verifier(claim: dict) -> str:
+    return f"Marketing copy was drafted: {claim['copy']!r}."
+
+
 ASPECTS = {
     "no_banned_phrases": no_banned_phrases,
     "has_call_to_action": has_call_to_action,
+    "independent_review": make_verifier_checker("independent_review", _describe_for_verifier),
 }

@@ -47,6 +47,18 @@ duplicate work. Keep task descriptions concrete and self-contained — a
 department agent only sees what you write in the task, not this conversation.
 """
 
+# Every agent has google_search_tool (both _CEO_TOOLS and
+# _DEPARTMENT_UNIVERSAL_TOOLS, below) but — confirmed by this session's
+# production audit — nothing anywhere ever told a model when to actually
+# reach for it; the only guidance was ADK's own generic built-in tool
+# description. Fixed once here (same place persona voice is already
+# injected) rather than editing 9+ department prompt files individually.
+_SEARCH_GUIDANCE = (
+    "You have live Google Search available as a tool — use it when the task references something recent, "
+    "time-sensitive, or otherwise outside what you already know; don't reach for it for routine work you can "
+    "already do from the task description and your own knowledge."
+)
+
 # The raw google_search built-in tool can't be combined with custom function
 # tools on the same agent — GoogleSearchAgentTool is ADK's own documented
 # workaround: a search-only sub-agent wrapped as a regular AgentTool, so it
@@ -60,11 +72,13 @@ google_search_tool = GoogleSearchAgentTool(agent=_google_search_sub_agent)
 _CEO_TOOLS = [
     create_task, write_board, send_message, list_agents_tool, list_tasks_tool, update_task_status, google_search_tool,
     spawn_subagent_tool, execute_python_tool,
-    # Same memory/note/mood tools every department gets (previously CEO-only
-    # missing these, not a deliberate exclusion) — lets the CEO's own
-    # self-check/memory-curation triggers (scripts/seed.py) actually do
-    # something with read_memory/write_memory, not just delegate.
-    read_memory, write_memory, search_memory_tool, set_note, set_mood,
+    # Same memory/note/mood/skill tools every department gets (previously
+    # CEO-only missing these, not a deliberate exclusion) — lets the CEO's
+    # own self-check/memory-curation triggers (scripts/seed.py) actually do
+    # something with read_memory/write_memory, and gives the CEO the same
+    # "learn from experience" self-service loop every department has via
+    # propose_skill, instead of an unexplained asymmetry.
+    read_memory, write_memory, search_memory_tool, set_note, set_mood, propose_skill,
 ]
 _DEPARTMENT_UNIVERSAL_TOOLS = [
     send_message, read_memory, write_memory, search_memory_tool, set_note, set_mood, propose_skill, google_search_tool,
@@ -88,6 +102,7 @@ _MODEL_BY_TIER = {"flash": settings.corporate_gemini_model, "pro": settings.corp
 def build_ceo_agent() -> LlmAgent:
     voice = PERSONA_VOICE.get("ceo", "")
     instruction = f"Your voice: {voice}\n\n{CEO_SYSTEM_PROMPT}" if voice else CEO_SYSTEM_PROMPT
+    instruction = f"{instruction}\n\n{_SEARCH_GUIDANCE}"
     return LlmAgent(
         name="ceo",
         model=settings.corporate_gemini_model,
@@ -124,6 +139,7 @@ def build_tiered_stage_agents(
     shared/custom_skills.py's per-call input injection, unchanged)."""
     voice = PERSONA_VOICE.get(department_id, "") if department_id else ""
     full_instruction = f"Your voice: {voice}\n\n{instruction}" if voice else instruction
+    full_instruction = f"{full_instruction}\n\n{_SEARCH_GUIDANCE}"
     return {
         tier: LlmAgent(
             name=f"{name}_{tier}",
