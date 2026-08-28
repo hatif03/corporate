@@ -1,0 +1,30 @@
+# ADR-0019: Gemma, Veo, and Lyria via Vertex AI — cross-model hallucination checking, break-room music, marketing video
+
+Status: Accepted
+
+## Context
+
+Two independent asks landed together: (1) the hackathon's "Google AI model" bonus scoring rewards integrating additional Google models beyond the base Gemini text model — Gemma, Veo, and Lyria are named explicitly, +0.2 points each, capped at +0.6 (confirmed via the hackathon's own rules page); (2) the user asked how to detect and mitigate LLM hallucination at runtime, on top of the existing citation-fabrication check (`shared/verification.py`, ADR-0007).
+
+Real research (current Google Cloud docs, not assumed) found all three are reachable exactly the way this project already reaches Gemini: fully-managed Vertex AI endpoints in the same project/location, authenticated with the same ADC credentials `app/api/voice.py` already uses for the Live API (`google.genai.Client(vertexai=True, project=..., location=...)`). Gemma specifically is available as a serverless Model-as-a-Service (MaaS) API — no self-hosted GPU endpoint to provision, which matters given the hackathon deadline. This means all three fit inside this project's existing hard constraint (ADR-0006/0014/0017: Vertex AI only, no second LLM *provider*) rather than requiring any exception to it — Gemma/Veo/Lyria are still Google models on Vertex AI, just a different model family than Gemini.
+
+2026 industry practice for runtime hallucination mitigation (researched) centers on: grounding, a judge attached to every generation span, and **cross-model consensus** — an independent second model reviewing the first model's output. This project's existing `vote_aspects()` fan-out (ADR-0007) already supports an LLM-backed aspect checker as long as the harness itself, not the LLM, decides the final verdict — cross-model consensus is a natural extension of that pattern, not a new one.
+
+## Decision
+
+- **Gemma** (`shared/cross_model_check.py`): an independent aspect checker added to `finance_audit` and `engineering_sre`'s existing `vote_aspects` fan-out. `make_gemma_checker(aspect_name, describe)` takes a small per-department function that renders that department's already-existing claim dict as plain English, and asks Gemma a strict yes/no "does this look internally consistent" question. A failed vote flows into the exact same `@audited_task` BLOCKED/HumanQA path every other verification failure already takes (ADR-0011) — the "fix" is the project's existing human-escalation path, not a new auto-regenerate loop, consistent with ADR-0007's "an LLM may judge or propose, but only deterministic code verifies."
+- **Lyria** (`app/services/lyria_client.py`): on-demand ambient/mood music generation for the office floor's Break Room, called synchronously (Lyria generation is short) from a new `POST /api/org/{org_id}/breakroom/music` endpoint, result stored via the existing `storage_client.py` (never bypassing its "only module that imports `google.cloud.storage`" rule, ADR-0013).
+- **Veo** (`departments/marketing_comms`): optional short promo-video generation from a `marketing_request` task's copy. Because Veo generation is a genuinely slow operation (minutes, not seconds — polled, not synchronous), it cannot run inside a Pub/Sub push handler's request lifetime the way Lyria's call can. `on_task_received` kicks off the operation and returns immediately; a polling path (same shape as the existing Cloud-Scheduler-driven `/internal/*` trigger polling, not a new mechanism) checks for completion and writes the resulting `gs://` URI onto the task once ready.
+- All three read their model id from `app/config.py` (`corporate_gemma_model`, and Veo/Lyria's model ids alongside it) — same pattern as the existing `corporate_gemini_model`/`corporate_gemini_model_pro` settings, just naming a different model family.
+
+## Alternatives considered
+
+- **A single generic "second model" abstraction shared across Gemma/Veo/Lyria.** Rejected — a text-judging checker, a music-generation call, and a video-generation-with-polling call have genuinely different shapes (sync judge vs. sync generation vs. async operation), the same reasoning ADR-0018 already applied to the three OAuth providers' token exchange.
+- **Self-hosting Gemma on a dedicated Vertex AI endpoint.** Rejected — Vertex AI's fully-managed MaaS API serves Gemma with no deployment step, which matters directly given the hackathon's 2026-08-31 deadline; a self-hosted GPU endpoint would add real provisioning time and cost for no behavioral benefit here.
+- **Making a failed Gemma check trigger automatic re-generation instead of human escalation.** Rejected — this project's established discipline (ADR-0007, ADR-0011) is that verification failures escalate to a human, never trigger the system to silently try again; a Gemma disagreement is treated identically to any other aspect-checker failure.
+
+## Consequences
+
+- Real one-time-per-model consideration before any of this is fully load-bearing in production: Gemma's exact current Vertex AI MaaS model id should be reconfirmed against Model Garden at deploy time (`app/config.py`'s `corporate_gemma_model` default may need bumping as Google's model lineup moves) — same kind of drift risk `app/api/voice.py`'s own `VOICE_MODEL` constant already documents for the Live API.
+- `finance_audit` and `engineering_sre`'s existing test suites now mock `shared.cross_model_check.genai.Client` — without that, their smoke tests would make a real Vertex AI network call on every test run, which is unacceptable for a unit test suite regardless of whether credentials happen to be present.
+- Veo's async-operation shape means marketing video generation is the one piece of this ADR most likely to be deferred past the hackathon deadline if time runs short — the other two (Gemma, Lyria) are independent of it and ship regardless.
