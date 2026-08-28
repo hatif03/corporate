@@ -164,5 +164,16 @@ async def call_integration(
             headers[integration.auth_header or "Authorization"] = secret_value
 
     url = f"{integration.base_url.rstrip('/')}/{path.lstrip('/')}"
-    async with httpx.AsyncClient() as client:
-        return await client.request(method, url, headers=headers, json=json, params=params)
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            return await client.request(method, url, headers=headers, json=json, params=params)
+    except httpx.HTTPError as exc:
+        # A genuine network failure (timeout, connection refused, DNS) isn't
+        # a ValueError — but every existing caller (notify_slack_channel,
+        # create_jira_ticket, both in departments/engineering_sre/tools.py)
+        # already does `except ValueError:` to fail soft on this broker's
+        # own access-control errors, so a network hiccup was previously
+        # escalating into a full task failure instead of the same soft
+        # "posted": False treatment. Re-raising as ValueError here (root
+        # cause, not touching every caller) keeps that contract intact.
+        raise ValueError(f"integration '{integration_id}' call failed: {exc}") from exc

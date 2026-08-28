@@ -78,6 +78,29 @@ async def test_call_integration_attaches_bearer_auth_header():
     assert call_kwargs["headers"]["Authorization"] == "Bearer xoxb-fake-token"
 
 
+async def test_call_integration_converts_network_failure_to_value_error():
+    """Regression: a real network failure (timeout, connection refused)
+    isn't a ValueError, but every existing caller (notify_slack_channel,
+    create_jira_ticket) only catches ValueError for the broker's own soft
+    fail-open behavior — a network hiccup was previously escalating into a
+    full task failure instead of the same soft treatment. See ADR-0019's
+    Part 4."""
+    enabled = Integration(
+        id="integ-1", kind="slack", base_url="https://slack.com/api",
+        auth_type=IntegrationAuthType.BEARER, secret_ref="ref", enabled=True,
+    )
+    mock_async_client = AsyncMock()
+    mock_async_client.__aenter__.return_value.request = AsyncMock(side_effect=httpx.ConnectTimeout("timed out"))
+
+    with (
+        patch("app.services.integration_broker.store.get_integration", return_value=enabled),
+        patch.object(integration_broker, "_resolve_secret", return_value="xoxb-fake-token"),
+        patch("app.services.integration_broker.httpx.AsyncClient", return_value=mock_async_client),
+    ):
+        with pytest.raises(ValueError, match="timed out"):
+            await integration_broker.call_integration("org-test", "integ-1", "engineering_sre", "POST", "/chat.postMessage")
+
+
 async def test_call_integration_denies_department_not_in_allowlist_and_files_request():
     restricted = Integration(
         id="integ-1", kind="slack", base_url="https://slack.com/api",

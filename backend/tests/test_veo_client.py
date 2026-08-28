@@ -59,3 +59,24 @@ async def test_check_video_generation_raises_on_operation_error():
     with patch("app.services.veo_client.genai.Client", return_value=client):
         with pytest.raises(RuntimeError, match="quota exceeded"):
             await veo_client.check_video_generation("projects/p/locations/l/operations/op-1")
+
+
+async def test_check_video_generation_raises_clean_error_on_malformed_result():
+    """Regression: 'done' with an empty/malformed result previously raised a
+    raw IndexError/AttributeError instead of a clean, catchable RuntimeError
+    — see ADR-0019's Part 4."""
+    operation = MagicMock(done=True, error=None)
+    operation.result.generated_videos = []
+    client = MagicMock()
+    client.aio.operations.get = AsyncMock(return_value=operation)
+    with patch("app.services.veo_client.genai.Client", return_value=client):
+        with pytest.raises(RuntimeError, match="no usable video"):
+            await veo_client.check_video_generation("projects/p/locations/l/operations/op-1")
+
+
+async def test_client_is_built_with_an_explicit_timeout():
+    client = _mock_client_for_generate("projects/p/locations/l/operations/op-1")
+    with patch("app.services.veo_client.genai.Client", return_value=client) as mock_ctor:
+        await veo_client.start_video_generation("org-test", "a calm product demo")
+
+    assert mock_ctor.call_args.kwargs["http_options"].timeout == veo_client._TIMEOUT_MS

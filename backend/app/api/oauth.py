@@ -106,21 +106,30 @@ async def oauth_callback(kind: str, request: Request) -> RedirectResponse:
         raise HTTPException(status_code=400, detail="missing code/state")
 
     org_id = _verify_state(state)
-    access_token = await exchange_code(kind, code, _redirect_uri(kind))
 
-    integration_id = f"integ-{kind}-oauth"
-    secret_ref = store_secret(settings.google_cloud_project, f"corporate-{org_id}-{integration_id}", access_token)
+    # Everything past this point is a real network/Secret-Manager call that
+    # can fail mid-flow — a raw 500 here would dead-end a real user on an
+    # OAuth provider's own redirect with no way back to the app. Same
+    # redirect-with-?oauth_error= treatment as the provider-declared-error
+    # branch above, not the generic 500 the global exception handler
+    # (app/main.py) would otherwise produce.
+    try:
+        access_token = await exchange_code(kind, code, _redirect_uri(kind))
+        integration_id = f"integ-{kind}-oauth"
+        secret_ref = store_secret(settings.google_cloud_project, f"corporate-{org_id}-{integration_id}", access_token)
 
-    template = INTEGRATION_TEMPLATES[kind]
-    existing = store.get_integration(org_id, integration_id)
-    integration = Integration(
-        id=integration_id,
-        kind=kind,
-        base_url=template.default_base_url,
-        auth_type=IntegrationAuthType.OAUTH2,
-        secret_ref=secret_ref,
-        connected_departments=existing.connected_departments if existing else [],
-    )
-    store.create_integration(org_id, integration)
+        template = INTEGRATION_TEMPLATES[kind]
+        existing = store.get_integration(org_id, integration_id)
+        integration = Integration(
+            id=integration_id,
+            kind=kind,
+            base_url=template.default_base_url,
+            auth_type=IntegrationAuthType.OAUTH2,
+            secret_ref=secret_ref,
+            connected_departments=existing.connected_departments if existing else [],
+        )
+        store.create_integration(org_id, integration)
+    except Exception as exc:  # noqa: BLE001 - a failed OAuth exchange must redirect, never dead-end on a raw 500
+        return RedirectResponse(f"{_frontend_url()}/?oauth_error=exchange_failed")
 
     return RedirectResponse(_frontend_url())

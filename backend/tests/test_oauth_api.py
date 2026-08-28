@@ -100,6 +100,24 @@ def test_oauth_callback_exchanges_code_and_creates_integration():
     assert created_integration.auth_type == IntegrationAuthType.OAUTH2
 
 
+def test_oauth_callback_exchange_failure_redirects_with_error_not_a_500():
+    """A failed exchange_code/store_secret call previously dead-ended a real
+    user on a raw 500 mid-OAuth-flow with no way back to the app — see
+    ADR-0019's Part 4. Must redirect with ?oauth_error=, same as the
+    provider-declared-error branch."""
+    with patch.object(oauth.settings, "oauth_state_secret", "test-secret"):
+        state = oauth._sign_state("demo")
+
+    with (
+        patch.object(oauth.settings, "oauth_state_secret", "test-secret"),
+        patch("app.api.oauth.exchange_code", side_effect=ValueError("slack oauth exchange failed: invalid_grant")),
+    ):
+        response = client.get(f"/api/oauth/slack/callback?code=abc123&state={state}", follow_redirects=False)
+
+    assert response.status_code in (302, 307)
+    assert "oauth_error=exchange_failed" in response.headers["location"]
+
+
 def test_oauth_callback_preserves_existing_connected_departments():
     existing = Integration(
         id="integ-slack-oauth", kind="slack", base_url="https://slack.com/api",

@@ -14,6 +14,7 @@ this module has no way to create that, it's a one-time manual prerequisite.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from urllib.parse import urlencode
 
@@ -21,6 +22,20 @@ import httpx
 
 from app.config import settings
 from app.services.integration_broker import _resolve_secret
+
+_TIMEOUT_SECONDS = 30.0
+
+
+def _safe_json(resp: httpx.Response, kind: str) -> dict:
+    """A non-JSON response from a provider (an HTML error page, an empty
+    body on a timeout-adjacent failure) previously raised an uncaught
+    json.JSONDecodeError here — every caller already expects a ValueError
+    on exchange failure (see exchange_code's docstring), so this keeps that
+    contract instead of a different, unhandled exception type leaking out."""
+    try:
+        return resp.json()
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{kind} oauth exchange returned a non-JSON response ({resp.status_code}): {exc}") from exc
 
 
 @dataclass(frozen=True)
@@ -77,13 +92,13 @@ async def exchange_code(kind: str, code: str, redirect_uri: str) -> str:
     token. Raises ValueError if the provider's own response indicates
     failure."""
     secret = _client_secret(kind)
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
         if kind == "slack":
             resp = await client.post(
                 "https://slack.com/api/oauth.v2.access",
                 data={"code": code, "client_id": PROVIDERS["slack"].client_id, "client_secret": secret, "redirect_uri": redirect_uri},
             )
-            data = resp.json()
+            data = _safe_json(resp, "slack")
             if not data.get("ok"):
                 raise ValueError(f"slack oauth exchange failed: {data.get('error')}")
             return data["access_token"]
@@ -94,7 +109,7 @@ async def exchange_code(kind: str, code: str, redirect_uri: str) -> str:
                 data={"client_id": PROVIDERS["github"].client_id, "client_secret": secret, "code": code, "redirect_uri": redirect_uri},
                 headers={"Accept": "application/json"},
             )
-            data = resp.json()
+            data = _safe_json(resp, "github")
             if "access_token" not in data:
                 raise ValueError(f"github oauth exchange failed: {data.get('error_description', data)}")
             return data["access_token"]
@@ -105,7 +120,7 @@ async def exchange_code(kind: str, code: str, redirect_uri: str) -> str:
                 json={"grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri},
                 auth=httpx.BasicAuth(PROVIDERS["notion"].client_id, secret),
             )
-            data = resp.json()
+            data = _safe_json(resp, "notion")
             if "access_token" not in data:
                 raise ValueError(f"notion oauth exchange failed: {data}")
             return data["access_token"]

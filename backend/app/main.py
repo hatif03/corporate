@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api import access_requests, agents, audit, breakroom, integrations, internal, knowledge_base, memory, oauth, org, triggers, veo, voice, workers
 from app.config import settings
+from app.services import store
 from app.services.auth import require_internal_oidc, require_org_member
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -84,10 +89,37 @@ app.include_router(voice.router)
 app.include_router(oauth.router)
 
 
+# Catches anything NOT already raised as an HTTPException — a raw Firestore/
+# Secret-Manager/httpx error in a route with no try/except of its own
+# (confirmed real gap: only department task processing gets this via
+# @audited_task, backend/departments/base.py; every other route had nothing,
+# falling through to Starlette's bare default 500). One shared fix here
+# instead of hand-wrapping every route — same root-cause-not-symptom
+# reasoning @audited_task already applies at the task layer. FastAPI's own
+# HTTPException handler is registered separately and takes priority for
+# anything that already raises one deliberately, so this only ever fires
+# for genuinely unhandled failures.
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    org_id = request.path_params.get("org_id")
+    logger.exception("unhandled exception on %s %s (org=%s)", request.method, request.url.path, org_id)
+    if org_id:
+        try:
+            store.log_activity(org_id, "backend", "unhandled-exception", f"{request.method} {request.url.path}: {exc}")
+        except Exception:  # noqa: BLE001 - logging the original failure must never itself crash the handler
+            pass
+    return JSONResponse(status_code=500, content={"detail": "internal server error"})
+
+
 # Not /healthz: on the shared *.run.app domain, Google's own front end
 # intercepts that exact path for its own synthetic monitoring before the
 # request ever reaches this container — confirmed live (every other path,
 # including a nonexistent one, correctly reaches FastAPI).
 @app.get("/api/healthz")
 async def healthz() -> dict:
-    return {"status": "ok", "project": settings.google_cloud_project}
+    try:
+        store.get_org_settings(settings.corporate_default_org_id)
+        firestore_status = "ok"
+    except Exception as exc:  # noqa: BLE001 - a health check reports failure, it doesn't propagate one
+        firestore_status = f"error: {exc}"
+    return {"status": "ok" if firestore_status == "ok" else "degraded", "project": settings.google_cloud_project, "firestore": firestore_status}
