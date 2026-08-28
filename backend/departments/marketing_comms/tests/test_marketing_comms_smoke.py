@@ -62,6 +62,63 @@ async def test_overclaiming_copy_is_rejected_and_needs_human():
     assert "marketing_scheduler" not in called_stages
 
 
+async def test_video_request_kicks_off_veo_without_blocking_task_completion():
+    """A 'video' keyword in the task description (ADR-0019) kicks off Veo
+    generation as a fire-and-forget side effect — the task still completes
+    (DONE) immediately with the copy; the video arrives later via
+    app/api/veo.py's polling endpoint, not by this call blocking on it."""
+
+    async def fake(agent, session_service, org_id, agent_id, prompt, attachment=None):
+        if agent.name.rsplit("_", 1)[0] == "marketing_brief_intake":
+            return "B2B audience, awareness goal, short email format."
+        if agent.name.rsplit("_", 1)[0] == "marketing_copy_drafter":
+            return "Our new API tier cuts integration time in half. Get started today."
+        return "Tuesday morning works well."
+
+    with (
+        patch("departments.marketing_comms.agents.run_agent_turn", new=AsyncMock(side_effect=fake)),
+        patch("app.services.store.update_task"),
+        patch("shared.audit_chain.append_entry"),
+        patch("app.services.pubsub_client.publish_message"),
+        patch(
+            "departments.marketing_comms.agents.start_video_generation",
+            new=AsyncMock(return_value="projects/p/locations/l/operations/op-1"),
+        ) as mock_start,
+        patch("departments.marketing_comms.agents.store.create_veo_operation") as mock_create_op,
+    ):
+        result = await on_task_received(
+            "org-test", _make_task("Announce our new API tier. Also generate a short promo video.")
+        )
+
+    assert result.success is True
+    assert result.needs_human is False
+    assert result.data["videoGenerating"] is True
+    assert "generating in the background" in result.summary
+    mock_start.assert_called_once()
+    mock_create_op.assert_called_once_with("org-test", "task-1", "projects/p/locations/l/operations/op-1")
+
+
+async def test_no_video_keyword_skips_veo_entirely():
+    async def fake(agent, session_service, org_id, agent_id, prompt, attachment=None):
+        if agent.name.rsplit("_", 1)[0] == "marketing_brief_intake":
+            return "B2B audience, awareness goal, short email format."
+        if agent.name.rsplit("_", 1)[0] == "marketing_copy_drafter":
+            return "Our new API tier cuts integration time in half. Get started today."
+        return "Tuesday morning works well."
+
+    with (
+        patch("departments.marketing_comms.agents.run_agent_turn", new=AsyncMock(side_effect=fake)),
+        patch("app.services.store.update_task"),
+        patch("shared.audit_chain.append_entry"),
+        patch("app.services.pubsub_client.publish_message"),
+        patch("departments.marketing_comms.agents.start_video_generation") as mock_start,
+    ):
+        result = await on_task_received("org-test", _make_task("Announce our new API tier."))
+
+    assert "videoGenerating" not in result.data
+    assert not mock_start.called
+
+
 async def test_copy_missing_cta_is_rejected():
     async def fake(agent, session_service, org_id, agent_id, prompt, attachment=None):
         if agent.name.rsplit("_", 1)[0] == "marketing_brief_intake":
