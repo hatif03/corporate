@@ -21,6 +21,14 @@ function TaskCard({ task }: { task: Task }) {
           </span>
         </div>
       )}
+      {Boolean(task.result?.videoGenerating) && !task.result?.videoUrl && (
+        <p className="corp-text-muted" style={{ fontSize: '0.8rem', marginTop: 4, marginBottom: 0 }}>
+          Promo video generating (Veo) — check back shortly.
+        </p>
+      )}
+      {typeof task.result?.videoUrl === 'string' && (
+        <video controls src={task.result.videoUrl} style={{ marginTop: 6, width: '100%', borderRadius: 6 }} />
+      )}
     </div>
   )
 }
