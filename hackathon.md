@@ -10,7 +10,7 @@ A virtual company that actually runs itself: nine autonomous AI departments — 
 
 ### Inspiration
 
-The Fortified Enterprise Fleet track asks for scalable institutional agent networks with real discovery/lifecycle, execution/state, security/governance, and telemetry — not a chatbot demo. A department roster of specialized agents reporting to a CEO orchestrator was the natural shape for that: it's how a real company is already organized, so "cross-department deployment" and "governance" aren't abstractions bolted on afterward, they're the org chart. A reference open-source project's office-floor UI (`chaitanyagiri/munder-difflin`, MIT) supplied the visual language and layout structure for making that org chart feel alive rather than like a dashboard — credited in full in `THIRD_PARTY_SKILLS.md` and in the first post of the blog series, along with exactly what was and wasn't carried over.
+The Fortified Enterprise Fleet track asks for scalable institutional agent networks with real discovery/lifecycle, execution/state, security/governance, and telemetry — not a chatbot demo. A department roster of specialized agents reporting to a CEO orchestrator was the natural shape for that: it's how a real company is already organized, so "cross-department deployment" and "governance" aren't abstractions bolted on afterward, they're the org chart. Office-style AI agents were an inspiration for making that org chart feel alive rather than like a dashboard.
 
 ### What it does
 

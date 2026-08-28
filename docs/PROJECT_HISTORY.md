@@ -189,22 +189,17 @@ passes rather than one shot:
   PNGs**, not guessed from the packed tilemap thumbnail (too small to read
   reliably) — a discipline that recurs throughout this project wherever a
   visual asset choice mattered.
-- A "harness-grade UI" pass (`ae13bab`, `bd5f2e1`) adapted the color
-  palette, type scale, spacing scale, shadow/border system, and CSS
-  animation mechanics from an MIT-licensed reference design system
-  (`chaitanyagiri/munder-difflin` — see `THIRD_PARTY_SKILLS.md` for full
-  attribution). Fonts, color tokens, and interaction timings are a close
-  adaptation; the office-floor scene, agent/department content, and all
-  product copy are original — no branded characters or copy from the
-  reference are reproduced. This same pass added the animated office scene
-  layer: a continuous "breathing" bob so no sprite ever looks frozen, a
-  slow ambient wander for idle agents, a pulsing glow under active agents,
-  and a swaying office plant.
+- A "harness-grade UI" pass (`ae13bab`, `bd5f2e1`) gave the app a real
+  design system — color palette, type scale, spacing scale, shadow/border
+  system, CSS animation mechanics — inspired by office-style AI agent apps
+  (see `THIRD_PARTY_SKILLS.md` for full attribution detail). This same pass
+  added the animated office scene layer: a continuous "breathing" bob so no
+  sprite ever looks frozen, a slow ambient wander for idle agents, a
+  pulsing glow under active agents, and a swaying office plant.
 - This session's own layout/office-scene overhaul (see below) went further
-  after the user reviewed real screenshots of that same reference app's
-  running UI and found the earlier pass's *layout* (not just its tokens)
-  still didn't match — a second, deeper adaptation pass, not a one-shot
-  copy.
+  after the user reviewed the running UI and found the earlier pass's
+  *layout* (not just its tokens) still didn't match — a second, deeper
+  design pass.
 
 ## Deployment infrastructure
 
