@@ -16,7 +16,7 @@ from departments.finance_audit import signals
 from departments.finance_audit.aspects import ASPECTS
 from departments.finance_audit.schemas import FraudSignals, InvoiceFields
 from shared.custom_skills import with_custom_guidance
-from shared.verification import vote_aspects
+from shared.verification import vote_aspects, votes_to_dicts
 
 DEPARTMENT_ID = "finance_audit"
 
@@ -111,6 +111,8 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
             "amount": invoice.amount,
             "risk_score": risk_score,
             "verified": verified.verified,
+            "votes": votes_to_dicts(verified.votes),
+            "retried": verified.retried,
         },
         needs_human=needs_human,
         human_question=(

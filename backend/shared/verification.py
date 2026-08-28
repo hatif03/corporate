@@ -82,3 +82,10 @@ async def vote_aspects(
 
 def _agreement_ratio(votes: list[AspectVote]) -> float:
     return sum(1 for v in votes if v.passed) / len(votes)
+
+
+def votes_to_dicts(votes: list[AspectVote]) -> list[dict]:
+    """Plain-dict form of a vote list for embedding in task.result (Firestore-
+    serializable) — previously computed then discarded by every vote_aspects
+    caller, leaving "which checker failed" invisible on the task."""
+    return [{"aspect": v.aspect, "passed": v.passed, "reason": v.reason} for v in votes]

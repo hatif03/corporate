@@ -16,7 +16,7 @@ from app.services.veo_client import start_video_generation
 from departments.base import audited_task
 from departments.marketing_comms.aspects import ASPECTS
 from shared.custom_skills import with_custom_guidance
-from shared.verification import vote_aspects
+from shared.verification import vote_aspects, votes_to_dicts
 
 DEPARTMENT_ID = "marketing_comms"
 
@@ -57,14 +57,25 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
         return TaskResult(
             success=False,
             summary=f"Draft copy failed brand-voice review: {failed_reasons}",
-            data={"copy": copy, "brand_voice_passed": False},
+            data={
+                "copy": copy,
+                "brand_voice_passed": False,
+                "votes": votes_to_dicts(verified.votes),
+                "retried": verified.retried,
+            },
             needs_human=True,
             human_question=f"Marketing copy needs a rewrite — {failed_reasons}",
         )
 
     schedule_suggestion = await run_agent_turn(scheduler_agents[tier], _session_service, org_id, DEPARTMENT_ID, copy)
 
-    data = {"copy": copy, "brand_voice_passed": True, "schedule_suggestion": schedule_suggestion}
+    data = {
+        "copy": copy,
+        "brand_voice_passed": True,
+        "schedule_suggestion": schedule_suggestion,
+        "votes": votes_to_dicts(verified.votes),
+        "retried": verified.retried,
+    }
     summary = f"{copy}\n\nSuggested timing: {schedule_suggestion}"
 
     # Optional Veo promo-video generation (ADR-0019) — a deterministic

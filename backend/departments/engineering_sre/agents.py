@@ -19,7 +19,7 @@ from departments.engineering_sre.schemas import CascadePrediction, TriageResult
 from departments.engineering_sre.tools import create_jira_ticket, notify_slack_channel
 from shared.custom_skills import with_custom_guidance
 from shared.privacy_pipeline import redact
-from shared.verification import vote_aspects
+from shared.verification import vote_aspects, votes_to_dicts
 
 DEPARTMENT_ID = "engineering_sre"
 
@@ -118,6 +118,8 @@ async def on_task_received(org_id: str, task: Task) -> TaskResult:
             "affected_systems": triage.affected_systems,
             "cascade_risk": cascade.cascade_risk,
             "verified": verified.verified,
+            "votes": votes_to_dicts(verified.votes),
+            "retried": verified.retried,
         },
         needs_human=needs_human,
         human_question=(
