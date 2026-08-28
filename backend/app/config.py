@@ -13,6 +13,20 @@ class Settings(BaseSettings):
     # calling create_task — see ADR-0013 and app/adk_agents/factory.py's
     # build_tiered_stage_agents().
     corporate_gemini_model_pro: str = "gemini-2.5-pro"
+    # Independent second model for runtime cross-model hallucination checking
+    # (shared/cross_model_check.py, ADR-0019) — fully-managed/serverless on
+    # Vertex AI MaaS, same project/location/ADC as everything else, no
+    # self-hosted GPU endpoint needed. Deliberately a different model
+    # family, not another Gemini tier — the point is an independent judge.
+    corporate_gemma_model: str = "gemma-3-27b-it"
+
+    # Break-room ambient music (app/services/lyria_client.py, ADR-0019) — no
+    # Python SDK method for Lyria yet (confirmed: google-genai's Models
+    # exposes generate_images/generate_videos but no music method), so this
+    # calls the raw Vertex AI predict REST endpoint directly. Reconfirm this
+    # id against Model Garden at deploy time — same drift risk
+    # app/api/voice.py's own VOICE_MODEL constant already documents.
+    corporate_lyria_model: str = "lyria-002"
     corporate_default_org_id: str = "demo"
     corporate_pubsub_topic: str = "agent-bus"
     corporate_backend_url: str = ""

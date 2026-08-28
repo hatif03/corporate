@@ -3,10 +3,20 @@ end to end with the three Gemini calls mocked (no live credentials needed)
 and Firestore-touching calls in the base decorator mocked out."""
 
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.models import Task, TaskStatus
 from departments.finance_audit.agents import on_task_received
+
+# The new gemma_cross_check aspect checker (shared/cross_model_check.py,
+# ADR-0019) makes a real Vertex AI call unless patched — every test below
+# patches this to a deterministic "yes" so verification.verified depends
+# only on the deterministic checkers being exercised, same as before this
+# checker existed.
+_gemma_says_yes = patch(
+    "shared.cross_model_check.genai.Client",
+    return_value=MagicMock(aio=MagicMock(models=MagicMock(generate_content=AsyncMock(return_value=MagicMock(text="yes"))))),
+)
 
 _DOC_INTEL_RESPONSE = json.dumps(
     {
@@ -55,6 +65,7 @@ async def test_on_task_received_clean_invoice_completes_without_human_review():
         patch("app.services.store.update_task"),
         patch("shared.audit_chain.append_entry"),
         patch("app.services.pubsub_client.publish_message"),
+        _gemma_says_yes,
     ):
         result = await on_task_received("org-test", task)
 
@@ -104,6 +115,7 @@ async def test_on_task_received_flags_high_fraud_risk_for_human_review():
         patch("app.services.store.update_task"),
         patch("shared.audit_chain.append_entry"),
         patch("app.services.pubsub_client.publish_message"),
+        _gemma_says_yes,
     ):
         result = await on_task_received("org-test", task)
 

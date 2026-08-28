@@ -5,6 +5,7 @@ the two structured classifications built in agents.py's finalize step."""
 
 from __future__ import annotations
 
+from shared.cross_model_check import make_gemma_checker
 from shared.verification import AspectVote
 
 _VALID_SEVERITIES = {"P1", "P2", "P3", "P4"}
@@ -35,7 +36,17 @@ async def severity_cascade_consistency(claim: dict) -> AspectVote:
     return AspectVote("severity_cascade_consistency", passed=not suspicious, reason=reason)
 
 
+def _describe_for_gemma(claim: dict) -> str:
+    triage, cascade = claim["triage"], claim["cascade"]
+    return (
+        f"An incident was triaged as severity={triage.get('severity')!r}, "
+        f"affected_systems={triage.get('affected_systems')}, summary={triage.get('summary')!r}, "
+        f"with cascade_risk={cascade.get('cascade_risk')!r}."
+    )
+
+
 ASPECTS = {
     "schema_consistency": schema_consistency,
     "severity_cascade_consistency": severity_cascade_consistency,
+    "gemma_cross_check": make_gemma_checker("gemma_cross_check", _describe_for_gemma),
 }
