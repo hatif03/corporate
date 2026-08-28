@@ -278,6 +278,10 @@ export interface AgentCustomSkill {
   title: string
   instructions: string
   createdAt: string
+  // "pending" = the agent proposed this itself via its propose_skill tool,
+  // not yet reviewed — excluded from that agent's actual turns until
+  // approved. Human-added skills (addAgentSkill below) are "active" immediately.
+  status: 'active' | 'pending'
 }
 
 export function listAgentSkills(orgId: string, agentId: string): Promise<AgentCustomSkill[]> {
@@ -288,8 +292,18 @@ export function addAgentSkill(orgId: string, agentId: string, title: string, ins
   return post(`/api/org/${orgId}/agents/${agentId}/skills`, { title, instructions }) as Promise<AgentCustomSkill>
 }
 
+export function approveAgentSkill(orgId: string, agentId: string, skillId: string): Promise<unknown> {
+  return post(`/api/org/${orgId}/agents/${agentId}/skills/${skillId}/approve`, {})
+}
+
 export function deleteAgentSkill(orgId: string, agentId: string, skillId: string): Promise<unknown> {
   return del(`/api/org/${orgId}/agents/${agentId}/skills/${skillId}`)
+}
+
+// ---- break room (Lyria ambient music, ADR-0019) ----
+
+export function generateBreakroomMusic(orgId: string): Promise<{ url: string }> {
+  return post(`/api/org/${orgId}/breakroom/music`, {}) as Promise<{ url: string }>
 }
 
 // ---- knowledge base (per-department org-uploaded documents) ----

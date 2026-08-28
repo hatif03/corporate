@@ -25,8 +25,10 @@ export interface Agent {
   department: string
   accentColor: string
   description: string
+  voice?: string | null
   goal?: string | null
   note?: string | null
+  mood?: string | null
   status: AgentStatus
   action: string
   progress: number

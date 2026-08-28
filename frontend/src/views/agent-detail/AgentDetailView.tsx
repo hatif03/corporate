@@ -4,6 +4,7 @@ import { PixelBadge } from '../../components/PixelBadge'
 import { EditAgentModal } from '../../components/EditAgentModal'
 import {
   addAgentSkill,
+  approveAgentSkill,
   deleteAgentSkill,
   listAgentSkills,
   pauseAgent,
@@ -51,6 +52,14 @@ function AgentSkills({ orgId, agent }: { orgId: string; agent: Agent }) {
     await refresh()
   }
 
+  async function approve(skillId: string) {
+    await approveAgentSkill(orgId, agent.id, skillId)
+    await refresh()
+  }
+
+  const active = custom.filter((s) => s.status !== 'pending')
+  const pending = custom.filter((s) => s.status === 'pending')
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div className="corp-panel">
@@ -75,10 +84,36 @@ function AgentSkills({ orgId, agent }: { orgId: string; agent: Agent }) {
         ))}
       </div>
 
+      {pending.length > 0 && (
+        <div className="corp-panel">
+          <h4 style={{ marginTop: 0 }}>AI-suggested, pending your review</h4>
+          <p className="corp-text-muted" style={{ fontSize: '0.85rem' }}>
+            This agent proposed these for itself after a task, based on what it learned — they don't affect its
+            behavior until you approve them.
+          </p>
+          {pending.map((s) => (
+            <div key={s.id} className="corp-divider-row" style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+              <div style={{ minWidth: 0 }}>
+                <strong>{s.title}</strong>
+                <div style={{ fontSize: '0.9rem', overflowWrap: 'anywhere' }}>{s.instructions}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <button className="corp-button" title="Approve" onClick={() => approve(s.id)}>
+                  <Icon name="check" />
+                </button>
+                <button className="corp-button" title="Reject" onClick={() => remove(s.id)}>
+                  <Icon name="x" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="corp-panel">
         <h4 style={{ marginTop: 0 }}>Custom, added by your org</h4>
-        {custom.length === 0 && <p className="corp-text-muted">No custom skills added yet.</p>}
-        {custom.map((s) => (
+        {active.length === 0 && <p className="corp-text-muted">No custom skills added yet.</p>}
+        {active.map((s) => (
           <div key={s.id} className="corp-divider-row" style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
             <div style={{ minWidth: 0 }}>
               <strong>{s.title}</strong>
@@ -152,6 +187,11 @@ export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent 
         </h3>
         <span className="corp-text-muted" style={{ flexShrink: 0 }}>{agent.department}</span>
         <PixelBadge status={agent.status} style={{ flexShrink: 0 }} />
+        {agent.mood && (
+          <span className="corp-badge" style={{ flexShrink: 0 }} title="Current mood, self-reported">
+            {agent.mood}
+          </span>
+        )}
         <button className="corp-button" title="Edit persona" onClick={() => setEditing(true)} style={{ flexShrink: 0 }}>
           <Icon name="edit" />
         </button>
@@ -159,6 +199,11 @@ export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent 
           {busy ? 'Working…' : agent.paused ? 'Resume' : 'Pause'}
         </button>
       </div>
+      {agent.voice && (
+        <p className="corp-text-muted" style={{ margin: 0, marginTop: -6, fontSize: '0.85rem', fontStyle: 'italic', flexShrink: 0 }}>
+          {agent.voice}
+        </p>
+      )}
 
       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
         <button
