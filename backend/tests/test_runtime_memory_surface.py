@@ -63,7 +63,7 @@ def test_relevant_memory_block_formats_hits():
 
     assert result is not None
     assert "vendor risk flagged last quarter" in result
-    mock_search.assert_called_once_with("org-test", "check this vendor", agent_id="finance_audit", top_k=3)
+    mock_search.assert_called_once_with("org-test", "check this vendor", agent_id="finance_audit", top_k=6)
 
 
 async def test_run_agent_turn_prepends_memory_block_when_present():

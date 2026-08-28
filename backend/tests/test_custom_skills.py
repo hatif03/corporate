@@ -29,3 +29,17 @@ def test_with_custom_guidance_joins_multiple_skills():
 
     assert "- A: do A" in result
     assert "- B: do B" in result
+
+
+def test_with_custom_guidance_excludes_pending_skills():
+    """An agent's own propose_skill call (tools/universal.py) writes status="pending" —
+    it must not affect behavior until an org owner approves it."""
+    skills = [
+        {"title": "Approved", "instructions": "do this", "status": "active"},
+        {"title": "Just proposed", "instructions": "do that", "status": "pending"},
+    ]
+    with patch("shared.custom_skills.store.list_agent_custom_skills", return_value=skills):
+        result = with_custom_guidance("org-test", "engineering_sre", "base")
+
+    assert "Approved" in result
+    assert "Just proposed" not in result

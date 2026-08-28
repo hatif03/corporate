@@ -172,6 +172,35 @@ async def set_note(note: str, tool_context: ToolContext) -> dict:
     return {"updated": True}
 
 
+async def set_mood(mood: str, tool_context: ToolContext) -> dict:
+    """Set a short current mood shown on your office-floor avatar (e.g.
+    "focused", "frustrated", "pleased") — a quick emotional read distinct
+    from your longer status note, for whenever how you feel about the work
+    is worth surfacing to a human at a glance."""
+    org_id, agent_id = _ids(tool_context)
+    org_doc(org_id, "agents", agent_id).update({"mood": mood})
+    return {"updated": True}
+
+
+async def propose_skill(title: str, instructions: str, tool_context: ToolContext) -> dict:
+    """Propose a new skill for yourself, based on something you learned
+    solving a hard or notable task — a short, reusable technique or piece of
+    guidance you'd want to remember next time something similar comes up.
+    This does NOT take effect immediately: it's queued for your org's owner
+    to review and approve (Settings -> agent detail -> Skills), the same way
+    a human-added skill would be. Use this sparingly, for genuinely reusable
+    lessons — not for every task.
+
+    Args:
+        title: a short name for the skill.
+        instructions: the actual guidance/technique, written for your own
+            future self to follow.
+    """
+    org_id, agent_id = _ids(tool_context)
+    skill_id = store.add_agent_custom_skill(org_id, agent_id, title, instructions, status="pending")
+    return {"proposed": True, "skill_id": skill_id}
+
+
 async def spawn_subagent_tool(
     prompt: str,
     tool_context: ToolContext,

@@ -40,6 +40,7 @@ def _build_stage_agents(name: str, prompt_file: str) -> dict:
         instruction=_load_prompt(prompt_file),
         description=f"Engineering & SRE pipeline stage: {name}",
         extra_tools=[spawn_subagent_tool],
+        department_id=DEPARTMENT_ID,
     )
 
 

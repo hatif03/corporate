@@ -33,6 +33,7 @@ metrics_agents = build_tiered_stage_agents(
     "analytics_metrics_analyst",
     instruction=_load_prompt("metrics_analyst"),
     description="Product & Data Analytics pipeline stage: metrics analyst",
+    department_id=DEPARTMENT_ID,
     extra_tools=[spawn_subagent_tool, execute_python_tool],
 )
 

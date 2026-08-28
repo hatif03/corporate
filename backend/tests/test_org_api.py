@@ -131,6 +131,16 @@ def test_delete_agent_skill_calls_store():
     mock_delete.assert_called_once_with("demo", "engineering_sre", "skill-1")
 
 
+def test_approve_agent_skill_calls_store():
+    """The review/approve half of an agent's own propose_skill loop
+    (tools/universal.py) — flips a pending skill to active."""
+    with patch("app.api.agents.store.approve_agent_custom_skill") as mock_approve:
+        response = client.post("/api/org/demo/agents/engineering_sre/skills/skill-1/approve")
+    assert response.status_code == 200
+    assert response.json() == {"approved": True}
+    mock_approve.assert_called_once_with("demo", "engineering_sre", "skill-1")
+
+
 def test_update_settings_accepts_valid_limit():
     with (
         patch("app.api.org.store.update_org_settings") as mock_update,

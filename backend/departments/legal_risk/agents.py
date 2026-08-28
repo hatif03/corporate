@@ -50,7 +50,8 @@ def _load_prompt(name: str) -> str:
 
 def _build_judge(lens: str) -> dict:
     return build_tiered_stage_agents(
-        f"legal_judge_{lens}", instruction=_load_prompt(lens), description=f"Legal & Risk conflict judge: {lens}"
+        f"legal_judge_{lens}", instruction=_load_prompt(lens), description=f"Legal & Risk conflict judge: {lens}",
+        department_id=DEPARTMENT_ID,
     )
 
 

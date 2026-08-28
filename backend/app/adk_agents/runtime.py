@@ -20,7 +20,7 @@ from app.models import Attachment
 from app.services import store
 from app.services.memory_search import search_memory
 
-MEMORY_AUTO_SURFACE_TOP_K = 3
+MEMORY_AUTO_SURFACE_TOP_K = 6  # widened so an agent's own past notes stay useful as memory grows (paired with the periodic memory-curation trigger, scripts/seed.py)
 
 MAX_TOOL_CALLS_PER_TURN = 25  # a runaway-loop backstop, not a tight budget
 MAX_IDENTICAL_REPEATS = 3  # in a row, not total — matches opencode's own

@@ -31,17 +31,20 @@ def _load_prompt(name: str) -> str:
 _lead_qualifier_agents = build_tiered_stage_agents(
     "sales_lead_qualifier", instruction=_load_prompt("lead_qualifier"),
     description="Sales & CRM pipeline stage: lead qualification",
+    department_id=DEPARTMENT_ID,
 )
 
 _deal_strategist_agents = build_tiered_stage_agents(
     "sales_deal_strategist", instruction=_load_prompt("deal_strategist"),
     description="Sales & CRM pipeline stage: deal strategy (pricing_guardrail-enforced)",
     extra_tools=[pricing_guardrail],
+    department_id=DEPARTMENT_ID,
 )
 
 _outreach_drafter_agents = build_tiered_stage_agents(
     "sales_outreach_drafter", instruction=_load_prompt("outreach_drafter"),
     description="Sales & CRM pipeline stage: outreach draft",
+    department_id=DEPARTMENT_ID,
 )
 
 # One full SequentialAgent pipeline per tier — sub_agents can't be swapped

@@ -67,5 +67,15 @@ async def add_skill(org_id: str, agent_id: str, body: AddSkillRequest) -> dict:
 
 @router.delete("/{agent_id}/skills/{skill_id}")
 async def delete_skill(org_id: str, agent_id: str, skill_id: str) -> dict:
+    """Also how a pending (agent-proposed) skill gets rejected — just deletes it."""
     store.delete_agent_custom_skill(org_id, agent_id, skill_id)
     return {"deleted": True}
+
+
+@router.post("/{agent_id}/skills/{skill_id}/approve")
+async def approve_skill(org_id: str, agent_id: str, skill_id: str) -> dict:
+    """Approves a pending skill the agent proposed for itself via
+    propose_skill (tools/universal.py) — flips it to active, at which point
+    with_custom_guidance starts including it in that agent's turns."""
+    store.approve_agent_custom_skill(org_id, agent_id, skill_id)
+    return {"approved": True}

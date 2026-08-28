@@ -47,8 +47,10 @@ class Agent(BaseModel):
     department: str
     accent_color: str = "sky"
     description: str = ""
+    voice: str | None = None  # static per-department persona flavor text, shared/personas.py
     goal: str | None = None
     note: str | None = None
+    mood: str | None = None  # short free-text mood the agent sets itself, tools/universal.py's set_mood
     status: AgentStatus = AgentStatus.IDLE
     action: str = ""
     progress: float = 0.0

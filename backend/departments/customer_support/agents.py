@@ -30,7 +30,8 @@ def _load_prompt(name: str) -> str:
 
 def _build_stage_agents(name: str, prompt_file: str) -> dict:
     return build_tiered_stage_agents(
-        name, instruction=_load_prompt(prompt_file), description=f"Customer Support pipeline stage: {name}"
+        name, instruction=_load_prompt(prompt_file), description=f"Customer Support pipeline stage: {name}",
+        department_id=DEPARTMENT_ID,
     )
 
 

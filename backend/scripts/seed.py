@@ -22,9 +22,10 @@ from google.api_core.exceptions import AlreadyExists
 from google.cloud import pubsub_v1
 
 from app.config import settings
-from app.models import Agent
+from app.models import Agent, Trigger, TriggerType
 from app.services import store
 from departments import list_departments
+from shared.personas import PERSONA_VOICE
 
 
 # Personas named by purpose, not by person — an agent's name IS its job
@@ -57,6 +58,7 @@ def seed_agents(org_id: str) -> list[str]:
             name=ceo_persona["name"],
             description=ceo_persona["description"],
             character=ceo_persona["character"],
+            voice=PERSONA_VOICE.get("ceo"),
             department="executive",
             is_ceo=True,
             accent_color="lemon",
@@ -71,11 +73,63 @@ def seed_agents(org_id: str) -> list[str]:
                 name=persona.get("name", dept.display_name),
                 description=persona.get("description", ""),
                 character=persona.get("character", "default"),
+                voice=PERSONA_VOICE.get(dept.department_id),
                 department=dept.department_id,
             ),
         )
         agent_ids.append(dept.department_id)
     return agent_ids
+
+
+# Proactive self-check + periodic memory curation — adapted from OpenClaw's
+# background heartbeats/independent task assessment and Hermes-agent's
+# agent-curated memory with periodic nudges (see docs/adr/0019-...), built
+# natively on the Trigger model that already exists (app/models/trigger.py)
+# rather than any new subsystem. Scoped to the CEO for this pass — the CEO
+# already has list_agents_tool/list_tasks_tool/create_task and (as of this
+# change) memory tools too, so it can act on what it finds; extending this
+# to per-department autonomous turns would need dispatch.py to handle a
+# trigger-fired department turn with no backing Task, which is real
+# follow-up work, not done here.
+#
+# Fixed ids make this idempotent (store.create_trigger upserts by id) — safe
+# to re-run on every deploy. Firing these on schedule still needs a one-time
+# manual `gcloud scheduler jobs create http` per trigger targeting
+# /internal/triggers/{org_id}/{trigger_id}/fire — same as any other
+# schedule-type trigger (see app/api/triggers.py's module docstring).
+DEFAULT_TRIGGERS: list[Trigger] = [
+    Trigger(
+        id="trig-ceo-self-check",
+        name="CEO self-check",
+        type=TriggerType.SCHEDULE,
+        target_agent="ceo",
+        payload_template=(
+            "Autonomous self-check: use list_agents_tool and list_tasks_tool to review the company's current "
+            "state. If anything looks stalled, blocked, or worth escalating, take action (create_task, "
+            "send_message) or note it via write_board. If nothing needs attention, do nothing — this is a "
+            "routine check, not a request for busywork."
+        ),
+        cron="*/30 * * * *",
+    ),
+    Trigger(
+        id="trig-ceo-memory-curation",
+        name="CEO memory curation",
+        type=TriggerType.SCHEDULE,
+        target_agent="ceo",
+        payload_template=(
+            "Memory curation: use read_memory to review your own long-term notes. If any are stale, redundant, "
+            "or superseded by a more recent one, use write_memory to save a single consolidated replacement note "
+            "— you can't delete old entries, so don't bother flagging that, just add a better one going forward. "
+            "If your memory is already small and clean, do nothing."
+        ),
+        cron="0 3 * * *",
+    ),
+]
+
+
+def seed_default_triggers(org_id: str) -> None:
+    for trigger in DEFAULT_TRIGGERS:
+        store.create_trigger(org_id, trigger)
 
 
 def create_push_subscriptions(org_id: str, agent_ids: list[str]) -> None:
@@ -121,6 +175,10 @@ if __name__ == "__main__":
     org_id = settings.corporate_default_org_id
     agent_ids = seed_agents(org_id)
     print(f"seeded agents for org '{org_id}': {agent_ids}")
+
+    seed_default_triggers(org_id)
+    print(f"seeded default triggers for org '{org_id}': {[t.id for t in DEFAULT_TRIGGERS]}")
+    print("  (each still needs a one-time `gcloud scheduler jobs create http` — see app/api/triggers.py)")
 
     if args.owner_uid:
         store.add_member(org_id, args.owner_uid, role="owner")

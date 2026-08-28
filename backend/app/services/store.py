@@ -94,16 +94,26 @@ def update_agent_persona(org_id: str, agent_id: str, **fields: Any) -> None:
 # ---- per-agent custom skills (orgs/{orgId}/agents/{agentId}/custom_skills) --
 
 
-def add_agent_custom_skill(org_id: str, agent_id: str, title: str, instructions: str) -> str:
+def add_agent_custom_skill(org_id: str, agent_id: str, title: str, instructions: str, status: str = "active") -> str:
+    """status="active" (default) is the existing human-added-from-Settings
+    path — takes effect immediately. status="pending" is an agent's own
+    propose_skill tool call (tools/universal.py) — queued for org-owner
+    review (approve_agent_custom_skill/delete_agent_custom_skill) before
+    with_custom_guidance (shared/custom_skills.py) will ever include it."""
     _, doc_ref = org_doc(org_id, "agents", agent_id).collection("custom_skills").add(
-        {"title": title, "instructions": instructions, "createdAt": _now()}
+        {"title": title, "instructions": instructions, "status": status, "createdAt": _now()}
     )
     return doc_ref.id
 
 
 def list_agent_custom_skills(org_id: str, agent_id: str) -> list[dict]:
     query = org_doc(org_id, "agents", agent_id).collection("custom_skills").order_by("createdAt", direction="DESCENDING")
-    return [{"id": d.id, **d.to_dict()} for d in query.stream()]
+    # status defaults to "active" for skills added before this field existed.
+    return [{"id": d.id, "status": "active", **d.to_dict()} for d in query.stream()]
+
+
+def approve_agent_custom_skill(org_id: str, agent_id: str, skill_id: str) -> None:
+    org_doc(org_id, "agents", agent_id).collection("custom_skills").document(skill_id).update({"status": "active"})
 
 
 def delete_agent_custom_skill(org_id: str, agent_id: str, skill_id: str) -> None:

@@ -39,6 +39,7 @@ def _build_stage_agents(name: str, prompt_file: str, extra_tools: list | None = 
         instruction=_load_prompt(prompt_file),
         description=f"Office of the CEO pipeline stage: {name}",
         extra_tools=extra_tools,
+        department_id=DEPARTMENT_ID,
     )
 
 

@@ -14,9 +14,11 @@ from app.adk_agents.tools.universal import (
     execute_python_tool,
     list_agents_tool,
     list_tasks_tool,
+    propose_skill,
     read_memory,
     search_memory_tool,
     send_message,
+    set_mood,
     set_note,
     spawn_subagent_tool,
     update_task_status,
@@ -24,6 +26,7 @@ from app.adk_agents.tools.universal import (
     write_memory,
 )
 from app.config import settings
+from shared.personas import PERSONA_VOICE
 
 CEO_SYSTEM_PROMPT = """\
 You are the CEO of Corporate, an autonomous company of AI department agents.
@@ -57,8 +60,15 @@ google_search_tool = GoogleSearchAgentTool(agent=_google_search_sub_agent)
 _CEO_TOOLS = [
     create_task, write_board, send_message, list_agents_tool, list_tasks_tool, update_task_status, google_search_tool,
     spawn_subagent_tool, execute_python_tool,
+    # Same memory/note/mood tools every department gets (previously CEO-only
+    # missing these, not a deliberate exclusion) — lets the CEO's own
+    # self-check/memory-curation triggers (scripts/seed.py) actually do
+    # something with read_memory/write_memory, not just delegate.
+    read_memory, write_memory, search_memory_tool, set_note, set_mood,
 ]
-_DEPARTMENT_UNIVERSAL_TOOLS = [send_message, read_memory, write_memory, search_memory_tool, set_note, google_search_tool]
+_DEPARTMENT_UNIVERSAL_TOOLS = [
+    send_message, read_memory, write_memory, search_memory_tool, set_note, set_mood, propose_skill, google_search_tool,
+]
 
 _UNIVERSAL_CALLBACKS = {
     "before_agent_callback": callbacks.before_agent_callback,
@@ -76,10 +86,12 @@ _MODEL_BY_TIER = {"flash": settings.corporate_gemini_model, "pro": settings.corp
 
 
 def build_ceo_agent() -> LlmAgent:
+    voice = PERSONA_VOICE.get("ceo", "")
+    instruction = f"Your voice: {voice}\n\n{CEO_SYSTEM_PROMPT}" if voice else CEO_SYSTEM_PROMPT
     return LlmAgent(
         name="ceo",
         model=settings.corporate_gemini_model,
-        instruction=CEO_SYSTEM_PROMPT,
+        instruction=instruction,
         description="CEO orchestrator — decomposes goals into tasks and assigns them to departments.",
         tools=_CEO_TOOLS,
         **_UNIVERSAL_CALLBACKS,
@@ -99,17 +111,24 @@ def department_callbacks() -> dict:
 
 
 def build_tiered_stage_agents(
-    name: str, instruction: str, description: str, extra_tools: list | None = None
+    name: str, instruction: str, description: str, extra_tools: list | None = None, department_id: str | None = None
 ) -> dict[str, LlmAgent]:
     """One LlmAgent singleton per Gemini tier for a single pipeline stage,
     sharing instruction/tools/callbacks — a department's on_task_received
     picks agents_by_tier[task.model_tier] instead of mutating a shared
-    singleton's .model at runtime. See ADR-0013."""
+    singleton's .model at runtime. See ADR-0013.
+
+    `department_id` prepends that department's persona voice
+    (shared/personas.py) to the instruction — static per-department flavor
+    text, not per-org (per-org customization still goes through
+    shared/custom_skills.py's per-call input injection, unchanged)."""
+    voice = PERSONA_VOICE.get(department_id, "") if department_id else ""
+    full_instruction = f"Your voice: {voice}\n\n{instruction}" if voice else instruction
     return {
         tier: LlmAgent(
             name=f"{name}_{tier}",
             model=model,
-            instruction=instruction,
+            instruction=full_instruction,
             description=description,
             tools=department_tools(extra_tools),
             **department_callbacks(),
