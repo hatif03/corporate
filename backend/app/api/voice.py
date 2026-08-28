@@ -40,11 +40,16 @@ from app.services.auth import _ensure_app
 router = APIRouter()
 
 # Vertex AI's Live API model id — distinct from the Developer API's own
-# naming (confirmed via the installed SDK's own docstring + Google's
-# Vertex docs). Preview-suffixed model names have churned before; confirm
-# against docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash-live-api
-# if this ever 404s.
-VOICE_MODEL = "gemini-2.0-flash-live-preview-04-09"
+# naming. The previous id here (gemini-2.0-flash-live-preview-04-09) had
+# quietly gone dead (404 in this project/region) by the time this was
+# re-verified for ADR-0020's Gemini-3.5 eligibility pass — Preview-suffixed
+# model names churn. Confirmed live via a real client.aio.live.connect()
+# round-trip, at the same us-central1 region every other Vertex call in
+# this project uses (unlike the main reasoning models — see
+# corporate_gemini_model's comment in app/config.py — the Live API tier
+# hasn't moved to "global"-only yet). Reconfirm the same way if this ever
+# 404s again.
+VOICE_MODEL = "gemini-live-2.5-flash-native-audio"
 
 
 async def _authorized_uid(websocket: WebSocket, org_id: str) -> str | None:

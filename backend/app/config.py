@@ -8,11 +8,25 @@ class Settings(BaseSettings):
     google_genai_use_vertexai: bool = True
     vertex_location: str = "us-central1"
 
-    corporate_gemini_model: str = "gemini-2.5-flash"
+    # Hackathon eligibility requires Gemini 3.5+ (see ADR-0020) — live-tested
+    # against this project's real Vertex AI access before picking these
+    # (same discipline as the Gemma post-mortem below): gemini-3.5-pro has
+    # no public model ID yet, so the "pro" tier below uses the current
+    # frontier Pro-tier model instead (3.1, a distinct lineage from 3.5
+    # Flash — Google doesn't version Pro/Flash in lockstep). ADK's LlmAgent
+    # never passes an explicit Vertex location (app/adk_agents/factory.py),
+    # so it falls through google-genai's own default resolution to
+    # "global" whenever GOOGLE_CLOUD_LOCATION is unset (confirmed by
+    # reading google.genai._api_client's source, then a live end-to-end ADK
+    # turn) — that's where these 3.x models actually live; they 404 at the
+    # us-central1 region this project's other services (Veo/Lyria/embeddings/
+    # voice) still use, but no code change was needed for that beyond the
+    # model string, since ADK already resolves there by default.
+    corporate_gemini_model: str = "gemini-3.5-flash"
     # Higher-capability tier for tasks the CEO marks model_tier="pro" when
     # calling create_task — see ADR-0013 and app/adk_agents/factory.py's
     # build_tiered_stage_agents().
-    corporate_gemini_model_pro: str = "gemini-2.5-pro"
+    corporate_gemini_model_pro: str = "gemini-3.1-pro-preview"
     # Independent second opinion for runtime hallucination checking
     # (shared/cross_model_check.py, ADR-0019). Originally spec'd as Gemma —
     # live-tested against this project's real Vertex AI and confirmed every
@@ -22,7 +36,7 @@ class Settings(BaseSettings):
     # Swapped for a distinct Gemini tier instead — a genuinely separate
     # model call (fresh context, no shared state with the primary
     # generation), just not a different vendor.
-    corporate_verifier_model: str = "gemini-2.5-flash-lite"
+    corporate_verifier_model: str = "gemini-3.5-flash-lite"
 
     # Break-room ambient music (app/services/lyria_client.py, ADR-0019) — no
     # Python SDK method for Lyria yet (confirmed: google-genai's Models
