@@ -118,9 +118,32 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [oauthError, setOauthError] = useState<string | null>(null)
 
   useEffect(() => {
     setConnectionErrorHandler((err) => setConnectionError(err.message))
+  }, [])
+
+  // The OAuth "Connect with X" flow (app/api/oauth.py) is a real top-level
+  // browser navigation away and back, not a fetch — errors on either the
+  // start or callback leg land back here as ?oauth_error=... with nothing
+  // reading it before now, so a failed connect silently dropped the user
+  // back on the app with zero explanation.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const error = params.get('oauth_error')
+    if (error) {
+      const provider = params.get('provider')
+      setOauthError(
+        error === 'not_configured'
+          ? `${provider ?? 'This integration'}'s OAuth app isn't registered yet — ask an admin to set it up.`
+          : `Connecting failed (${error}) — try again.`,
+      )
+      params.delete('oauth_error')
+      params.delete('provider')
+      const rest = params.toString()
+      window.history.replaceState(null, '', window.location.pathname + (rest ? `?${rest}` : ''))
+    }
   }, [])
   useEffect(() => watchAuthState(setUser), [])
   useEffect(
@@ -197,6 +220,30 @@ function App() {
           }}
         >
           Connection lost — retrying… ({connectionError})
+        </div>
+      )}
+
+      {oauthError && (
+        <div
+          className="corp-badge"
+          style={{
+            background: 'var(--status-blocked)',
+            borderRadius: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: 'var(--corp-space-1)',
+            fontSize: 'var(--corp-text-body-sm)',
+          }}
+        >
+          {oauthError}
+          <button
+            onClick={() => setOauthError(null)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', display: 'inline-flex' }}
+          >
+            <Icon name="x" style={{ width: 12, height: 12 }} />
+          </button>
         </div>
       )}
 

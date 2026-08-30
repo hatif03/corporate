@@ -1,3 +1,4 @@
+import dataclasses
 from unittest.mock import patch
 
 import pytest
@@ -56,14 +57,43 @@ def test_oauth_start_rejects_non_member():
 
 
 def test_oauth_start_redirects_member_to_provider():
+    configured_slack = dataclasses.replace(oauth.PROVIDERS["slack"], client_id="test-client-id")
     with (
         patch("app.api.oauth.firebase_auth.verify_id_token", return_value={"uid": "uid-1"}),
         patch("app.api.oauth.store.get_member_role", return_value="owner"),
         patch.object(oauth.settings, "oauth_state_secret", "test-secret"),
+        patch.dict(oauth.PROVIDERS, {"slack": configured_slack}),
     ):
         response = client.get("/api/org/demo/integrations/slack/oauth/start?token=valid", follow_redirects=False)
     assert response.status_code in (302, 307)
     assert "slack.com/oauth/v2/authorize" in response.headers["location"]
+
+
+def test_oauth_start_redirects_to_frontend_with_error_when_state_secret_missing():
+    configured_slack = dataclasses.replace(oauth.PROVIDERS["slack"], client_id="test-client-id")
+    with (
+        patch("app.api.oauth.firebase_auth.verify_id_token", return_value={"uid": "uid-1"}),
+        patch("app.api.oauth.store.get_member_role", return_value="owner"),
+        patch.object(oauth.settings, "oauth_state_secret", ""),
+        patch.dict(oauth.PROVIDERS, {"slack": configured_slack}),
+    ):
+        response = client.get("/api/org/demo/integrations/slack/oauth/start?token=valid", follow_redirects=False)
+    assert response.status_code in (302, 307)
+    assert "oauth_error=not_configured" in response.headers["location"]
+    assert ".web.app" in response.headers["location"]
+
+
+def test_oauth_start_redirects_to_frontend_with_error_when_client_id_missing():
+    unconfigured_slack = dataclasses.replace(oauth.PROVIDERS["slack"], client_id="")
+    with (
+        patch("app.api.oauth.firebase_auth.verify_id_token", return_value={"uid": "uid-1"}),
+        patch("app.api.oauth.store.get_member_role", return_value="owner"),
+        patch.object(oauth.settings, "oauth_state_secret", "test-secret"),
+        patch.dict(oauth.PROVIDERS, {"slack": unconfigured_slack}),
+    ):
+        response = client.get("/api/org/demo/integrations/slack/oauth/start?token=valid", follow_redirects=False)
+    assert response.status_code in (302, 307)
+    assert "oauth_error=not_configured" in response.headers["location"]
 
 
 def test_oauth_callback_missing_code_400s():

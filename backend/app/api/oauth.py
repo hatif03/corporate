@@ -87,6 +87,15 @@ async def oauth_start(org_id: str, kind: str, token: str) -> RedirectResponse:
     if store.get_member_role(org_id, decoded["uid"]) is None:
         raise HTTPException(status_code=403, detail=f"not a member of org '{org_id}'")
 
+    # This route is a plain top-level browser navigation, not a fetch call
+    # (see module docstring) — an HTTPException here used to leave the user
+    # stranded on a bare JSON error page with no way back into the app.
+    # Anything wrong with this provider's config is checked up front and
+    # redirects back into the SPA with ?oauth_error=... instead, matching
+    # the callback route's existing never-dead-end-on-a-raw-500 discipline.
+    if not settings.oauth_state_secret or not PROVIDERS[kind].client_id:
+        return RedirectResponse(f"{_frontend_url()}/?oauth_error=not_configured&provider={kind}")
+
     state = _sign_state(org_id)
     return RedirectResponse(authorize_url(kind, state, _redirect_uri(kind)))
 
