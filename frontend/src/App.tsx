@@ -261,7 +261,7 @@ function App() {
 
           <div className="corp-panel" style={{ width: focusMode ? '100%' : sidebarWidth, flexShrink: 0, minHeight: 0, overflow: 'hidden' }}>
             {rightPanelShowsDetail ? (
-              <AgentDetailView orgId={ORG_ID} agent={selectedAgent!} />
+              <AgentDetailView orgId={ORG_ID} agent={selectedAgent!} onClose={() => setSelectedAgentId(null)} />
             ) : (
               <DashboardTabs orgId={ORG_ID} agents={agents} tasks={tasks} tab={tab} setTab={setTab} tabs={tabs} onSelectAgent={handleSelectAgent} />
             )}

@@ -176,7 +176,7 @@ function AgentMessages({ orgId, agent }: { orgId: string; agent: Agent }) {
   )
 }
 
-export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent }) {
+export function AgentDetailView({ orgId, agent, onClose }: { orgId: string; agent: Agent; onClose: () => void }) {
   const [tab, setTab] = useState<DetailTab>('terminal')
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -226,6 +226,9 @@ export function AgentDetailView({ orgId, agent }: { orgId: string; agent: Agent 
         </button>
         <button className="corp-button" style={{ marginLeft: 'auto', flexShrink: 0 }} onClick={togglePause} disabled={busy}>
           {busy ? 'Working…' : agent.paused ? 'Resume' : 'Pause'}
+        </button>
+        <button className="corp-button" title="Back to dashboard" onClick={onClose} style={{ flexShrink: 0 }}>
+          <Icon name="x" />
         </button>
       </div>
       {agent.voice && (
