@@ -19,6 +19,7 @@ read/write it instead — noted here, not built now.
 
 from __future__ import annotations
 
+import json
 from typing import Any, Optional
 
 from google.adk.events.event import Event
@@ -31,6 +32,20 @@ from google.adk.sessions.session import Session
 
 from app.services import compaction, store
 from app.services.firestore_client import org_collection, org_doc
+
+
+def _json_safe(value: Any) -> Any:
+    """Event.model_dump(mode="json") is supposed to leave nothing but plain
+    JSON-safe values, but a live grounding-metadata-bearing event (Google
+    Search results, ADR-0013) was reproduced live shipping a raw
+    google.genai.types.GroundingMetadata object nested somewhere inside —
+    intermittently, depending on the real search response's shape, so this
+    isn't one fixed field to special-case. A round trip through the
+    stdlib's own JSON encoder is the actual contract Firestore needs
+    anyway; `default=str` turns whatever slips through into a readable
+    string instead of crashing an otherwise-successful turn.
+    """
+    return json.loads(json.dumps(value, default=str))
 
 
 def _uid_to_agent_id(user_id: str) -> str:
@@ -122,7 +137,7 @@ class FirestoreSessionService(BaseSessionService):
                 store.log_activity(org_id, session.id, "compaction-failed", str(exc))
         org_doc(org_id, "agent_sessions", session.id).set(
             {
-                "state": session.state,
-                "events": [e.model_dump(mode="json") for e in session.events],
+                "state": _json_safe(session.state),
+                "events": [_json_safe(e.model_dump(mode="json")) for e in session.events],
             }
         )

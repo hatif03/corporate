@@ -40,7 +40,14 @@ _PROMPT = (
 
 
 async def _ask_verifier(description: str) -> bool:
-    client = genai.Client(vertexai=True, project=settings.google_cloud_project, location=settings.vertex_location)
+    # Deliberately NOT settings.vertex_location ("us-central1", what every
+    # other raw genai.Client() in this app — Veo, Lyria, embeddings, voice —
+    # correctly uses). corporate_verifier_model is a Gemini 3.5-tier model
+    # (ADR-0020), and those only resolve at Vertex's "global" location in
+    # this project — confirmed live, the exact 404 ADR-0020 already
+    # documents for ADK's own default client, which this checker doesn't
+    # go through since it's a raw genai.Client(), not an ADK LlmAgent.
+    client = genai.Client(vertexai=True, project=settings.google_cloud_project, location="global")
     response = await client.aio.models.generate_content(
         model=settings.corporate_verifier_model, contents=_PROMPT.format(claim=description)
     )
