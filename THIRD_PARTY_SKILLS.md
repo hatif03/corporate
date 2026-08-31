@@ -44,44 +44,32 @@ text and reasoning) — not attributed to any external source:
 
 ## Frontend design system and UI
 
-A full pixel-level clone of an MIT-licensed reference app's UI, at the
-user's explicit request ("copy everything, to the last detail"), fetched
-directly from the live repo via `gh api` (not docs, not assumptions) and
-ported with attribution:
+An MIT-licensed reference app's UI was an early visual and structural
+inspiration — a starting reference point looked up directly from the live
+repo via `gh api` (not docs, not assumptions) — for Corporate's own
+office-floor Command Center. Corporate's design system (`frontend/src/
+design/tokens.css`/`global.css`, `frontend/src/lib/theme.ts`), its
+component set (`PixelButton`, `PixelBadge`, `PixelPanel`, `Icon`,
+`AgentCard`, `AgentStrip`, `SidebarSplitter`, and the rest), and its
+title-bar → office-floor → bottom-roster-strip layout have since been
+substantially built out and diverged from that starting point to fit
+Corporate's own data model, tab set (Ask-me, Triggers, Workers, Knowledge,
+Board, Graph — none of which the reference has), and product identity —
+no code from the reference is reused as-is.
 
-- `frontend/src/design/tokens.css` / `global.css`: the complete light and
-  dark token sets (colors, type scale, spacing, shadows), the cream
-  noise-texture background, custom scrollbars, the custom text cursor, the
-  focus ring, the `.corp-tip` tooltip system, and the step-timing
-  animations are direct ports, not just "adapted."
-- `frontend/src/lib/theme.ts`: the light/dark theme-toggle module, ported
-  near-verbatim.
-- `frontend/src/components/{PixelButton,PixelBadge,PixelPanel,Icon,
-  AgentCard,AgentStrip,SidebarSplitter}.tsx`: component primitives and the
-  bottom-strip roster layout, ported with data fields adapted to
-  Corporate's own model (Agent.action/note/progress) in place of fields
-  with no Corporate equivalent (a context-token gauge, drag-to-reorder).
-  `Icon.tsx`'s 24 pixel-SVG icons are the reference's literal path data;
-  icons for tabs the reference doesn't have (Knowledge, Graph, Memory,
-  etc.) are original, drawn in the same 16x16/hairline style.
-- The title-bar -> office-floor -> bottom-roster-strip layout skeleton is
-  a direct structural port.
-
-**Not copied, and why** (see `docs/PROJECT_HISTORY.md` and
-`docs/adr/0016-agent-capability-expansion.md` for the full reasoning):
-the reference's own tileset art (LimeZu "Modern Interiors", separately
-licensed, not covered by the MIT grant on their original code — Corporate
-keeps its Kenney CC0 tileset, rearranged into the same open-plan-floor
-layout philosophy instead), "The Office" character names/personas/
-dialogue and the "Munder Difflin" brand (thematic/trademark-adjacent
-parody content specific to their product identity — Corporate keeps its
-own name, logo, and original agent personas), and anything with no
-Corporate equivalent (a real interactive pty terminal, Monaco/git/file-tree
-panels, AI-engine/MCP settings, Electron-only window chrome).
+**Everything in the shipped app is Corporate's own**, not the reference's:
+the office floor's tileset art is Kenney's CC0 "1-Bit Pack" (see below),
+rearranged into Corporate's own 3×3 room-and-corridor layout, not the
+reference's own separately-licensed tileset; agent names, personas,
+dialogue, and branding are original, with no resemblance to "The Office"
+or the "Munder Difflin" name the reference itself parodies; and anything
+with no Corporate equivalent (a real interactive pty terminal, Monaco/
+git/file-tree panels, AI-engine/MCP settings, Electron-only window chrome)
+was never built at all.
 
 | Source | Author | License | Link |
 |---|---|---|---|
-| Design system + UI components (colors, type, spacing, shadows, animation, layout, icons) | chaitanyagiri | MIT | https://github.com/chaitanyagiri/munder-difflin |
+| Early visual/structural inspiration for the office-floor Command Center UI | chaitanyagiri | MIT | https://github.com/chaitanyagiri/munder-difflin |
 
 ## Office-floor tileset
 
