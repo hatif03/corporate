@@ -1,8 +1,25 @@
 # Corporate
 
+![Corporate — a virtual company of autonomous AI department agents](Corporate.png)
+
 A virtual company: a 2D pixel-art office-floor web app where autonomous AI employees work across real departments (Finance, Engineering, Legal, and more), coordinated by a CEO agent, all visible and controllable through a "Command Center" dashboard.
 
 Built for the **All Things Agentic** hackathon. Track: The Fortified Enterprise Fleet.
+
+## Demo
+
+<video src="https://raw.githubusercontent.com/hatif03/corporate/master/frontend/public/media/corporate-demo.mp4" controls width="760">
+  Your viewer doesn't render inline video — watch it directly at
+  <a href="frontend/public/media/corporate-demo.mp4">frontend/public/media/corporate-demo.mp4</a>.
+</video>
+
+*(If the player above doesn't load in your Markdown viewer, the same clip lives at [`frontend/public/media/corporate-demo.mp4`](frontend/public/media/corporate-demo.mp4) — clone the repo and open it directly, or watch it live embedded on the app's own [landing page](https://project-f0b6b4ce-541f-43ff-9f7.web.app).)*
+
+## Why this exists
+
+Most agent demos are one chatbot answering one question. A real company isn't that — it's departments, each with its own judgment, working together under real oversight, with a CEO who delegates rather than does everything itself. That's the shape this project takes literally: nine department agents (Finance & Audit, Engineering & SRE, Legal & Risk, Sales & CRM, HR & People Ops, Customer Support, Marketing & Comms, Product & Data Analytics, and the Office of the CEO) plus a CEO orchestrator, coordinating over a real Pub/Sub message bus, each with a persona, a memory, and a job — not nine copies of the same prompt.
+
+None of what's below is a lucky first draft. This is a project with a genuinely well-documented paper trail: **20 Architecture Decision Records** in [`/docs/adr/`](docs/adr/), a [full chronological narrative](docs/PROJECT_HISTORY.md) tying every one of them together, and a **[four-part blog series](docs/blog/)** that tells the whole story in public — what got built, what got seriously evaluated and thrown away (Google Antigravity, a second LLM provider for fraud detection, Gemma before it turned out to need a paid GPU endpoint), and every real production bug that got caught by actually testing against live Google Cloud infrastructure instead of trusting documentation. If you only read one more document after this one, read [`docs/PROJECT_HISTORY.md`](docs/PROJECT_HISTORY.md) or [the blog](docs/blog/01-why-a-company-of-agents.md) — this README is the reference; those are the story.
 
 ## Status
 
