@@ -68,10 +68,12 @@ class _Unserializable:
         return "<unserializable-thing>"
 
 
-def test_json_safe_converts_objects_json_cannot_encode():
-    assert _json_safe({"grounding_metadata": _Unserializable()}) == {
-        "grounding_metadata": "<unserializable-thing>"
-    }
+def test_json_safe_drops_objects_json_cannot_encode_to_none():
+    # None, not str(obj) — every field this can appear on (grounding_metadata
+    # included) is Optional on ADK's own Event schema, and a stringified
+    # value previously broke Event.model_validate() on every later read of
+    # that same session (reproduced live — see the regression test below).
+    assert _json_safe({"grounding_metadata": _Unserializable()}) == {"grounding_metadata": None}
 
 
 async def test_persist_survives_a_raw_sdk_object_nested_in_an_event_dump():
@@ -94,4 +96,30 @@ async def test_persist_survives_a_raw_sdk_object_nested_in_an_event_dump():
         await service._persist("org-test", session)  # must not raise
 
     written = mock_doc.set.call_args.args[0]
-    assert written["events"][0]["content"]["parts"][0]["grounding_metadata"] == "<unserializable-thing>"
+    assert written["events"][0]["content"]["parts"][0]["grounding_metadata"] is None
+
+
+async def test_get_session_skips_a_corrupt_historical_event_instead_of_crashing():
+    """Regression test: an event written before _json_safe existed (or by
+    any other future bug) can leave a value Event.model_validate() rejects
+    outright — that must not brick every future read of this agent's whole
+    session history."""
+    service = FirestoreSessionService()
+    mock_snap = MagicMock()
+    mock_snap.exists = True
+    mock_snap.to_dict.return_value = {
+        "state": {},
+        "events": [{"grounding_metadata": "not-a-valid-dict-or-none"}],
+    }
+    mock_doc = MagicMock()
+    mock_doc.get.return_value = mock_snap
+    with (
+        patch("app.services.session_service.org_doc", return_value=mock_doc),
+        patch("app.services.session_service.store.log_activity") as mock_log,
+    ):
+        session = await service.get_session(app_name="corporate", user_id="org-test", session_id="ceo")
+
+    assert session is not None
+    assert session.events == []
+    mock_log.assert_called_once()
+    assert mock_log.call_args.args[2] == "corrupt-event-skipped"

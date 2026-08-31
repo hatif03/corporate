@@ -9,6 +9,8 @@ from datetime import timedelta
 from functools import lru_cache
 from uuid import uuid4
 
+import google.auth
+from google.auth.transport import requests as google_auth_requests
 from google.cloud import storage
 
 from app.config import settings
@@ -40,7 +42,23 @@ def upload_playable_media(org_id: str, subdir: str, mime_type: str, data: bytes)
     based — requires corporate-backend-sa to hold
     roles/iam.serviceAccountTokenCreator on ITSELF (self-impersonation, for
     the IAM Credentials signBlob API Cloud Run's ADC needs since there's no
-    private key file here), set up once in infra/deploy/setup.sh."""
+    private key file here), set up once in infra/deploy/setup.sh.
+
+    That grant alone isn't sufficient, reproduced live: generate_signed_url()
+    still tries to sign locally with the credential's own private key by
+    default, and Compute Engine/Cloud Run credentials (and even a local
+    `gcloud auth application-default login` user credential) have none —
+    "you need a private key to sign credentials" regardless of the IAM
+    grant. The credential has to be handed off explicitly so the signing
+    call goes through the IAM Credentials signBlob API instead."""
     blob = _get_bucket().blob(f"orgs/{org_id}/{subdir}/{uuid4().hex}")
     blob.upload_from_string(data, content_type=mime_type)
-    return blob.generate_signed_url(version="v4", expiration=timedelta(hours=1), method="GET")
+    credentials, _ = google.auth.default()
+    credentials.refresh(google_auth_requests.Request())
+    return blob.generate_signed_url(
+        version="v4",
+        expiration=timedelta(hours=1),
+        method="GET",
+        service_account_email=credentials.service_account_email,
+        access_token=credentials.token,
+    )

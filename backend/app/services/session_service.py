@@ -42,10 +42,19 @@ def _json_safe(value: Any) -> Any:
     intermittently, depending on the real search response's shape, so this
     isn't one fixed field to special-case. A round trip through the
     stdlib's own JSON encoder is the actual contract Firestore needs
-    anyway; `default=str` turns whatever slips through into a readable
-    string instead of crashing an otherwise-successful turn.
+    anyway.
+
+    `default=lambda _: None`, not `str` — also reproduced live: every one
+    of these fields (grounding_metadata included) is Optional on ADK's own
+    Event schema, so None round-trips cleanly through get_session()'s
+    Event.model_validate() on the way back out. A first attempt used
+    `default=str` instead, which "fixed" the write but then broke every
+    subsequent turn on that same session — Event.model_validate() rejects
+    a bare string where it expects a dict-or-None, so the corrupted history
+    made the whole session permanently unreadable until manually cleared.
+    Losing one debug field beats bricking the agent's memory.
     """
-    return json.loads(json.dumps(value, default=str))
+    return json.loads(json.dumps(value, default=lambda _: None))
 
 
 def _uid_to_agent_id(user_id: str) -> str:
@@ -90,7 +99,15 @@ class FirestoreSessionService(BaseSessionService):
         if not snap.exists:
             return None
         data = snap.to_dict()
-        events = [Event.model_validate(e) for e in data.get("events", [])]
+        events = []
+        for e in data.get("events", []):
+            try:
+                events.append(Event.model_validate(e))
+            except Exception as exc:  # noqa: BLE001 - one malformed historical event (e.g. written before
+                # _json_safe existed) must not permanently brick this agent's entire
+                # session history — drop it and keep going, same reasoning as
+                # compaction's own "must never break a real turn" failure containment.
+                store.log_activity(org_id, session_id, "corrupt-event-skipped", str(exc))
         if config:
             if config.num_recent_events is not None:
                 events = events[-config.num_recent_events :] if config.num_recent_events else []

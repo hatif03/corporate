@@ -35,10 +35,15 @@ SUMMARY_MARKER = "[compaction-summary]"
 
 @lru_cache
 def _client() -> genai.Client:
+    # Deliberately NOT settings.vertex_location — this client calls
+    # corporate_gemini_model, a Gemini 3.5-tier model (ADR-0020), which only
+    # resolves at Vertex's "global" location in this project. Same bug,
+    # same fix, as shared/cross_model_check.py's verifier client — see its
+    # comment for the live-reproduced 404 this avoids.
     return genai.Client(
         vertexai=settings.google_genai_use_vertexai,
         project=settings.google_cloud_project,
-        location=settings.vertex_location,
+        location="global",
     )
 
 
