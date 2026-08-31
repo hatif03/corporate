@@ -9,6 +9,7 @@ import {
   listAgentSkills,
   pauseAgent,
   resumeAgent,
+  toDisplayDate,
   watchAgentSession,
   watchMessages,
   type AgentCustomSkill,
@@ -169,7 +170,7 @@ function AgentMessages({ orgId, agent }: { orgId: string; agent: Agent }) {
           <strong>{m.from} → {m.to}</strong>{' '}
           <span className="corp-badge" style={{ background: 'var(--corp-sky-light)' }}>{m.act}</span>
           <div style={{ overflowWrap: 'anywhere' }}>{m.subject}</div>
-          <div className="corp-text-muted" style={{ fontSize: '0.8rem' }}>{m.createdAt}</div>
+          <div className="corp-text-muted" style={{ fontSize: '0.8rem' }}>{toDisplayDate(m.createdAt)?.toLocaleString() ?? ''}</div>
         </div>
       ))}
     </div>
@@ -251,7 +252,7 @@ export function AgentDetailView({ orgId, agent, onClose }: { orgId: string; agen
       )}
       <p className="corp-text-muted" style={{ margin: 0, marginTop: -6, fontSize: '0.8rem', flexShrink: 0 }}>
         running on {agent.provider} · {agent.model}
-        {agent.createdAt && ` · active since ${new Date(agent.createdAt).toLocaleDateString()}`}
+        {toDisplayDate(agent.createdAt) && ` · active since ${toDisplayDate(agent.createdAt)!.toLocaleDateString()}`}
       </p>
       <AgentSessionLine orgId={orgId} agentId={agent.id} />
 

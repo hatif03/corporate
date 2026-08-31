@@ -1,5 +1,6 @@
 import { Collapsible } from '../../components/Collapsible'
 import { Icon } from '../../components/Icon'
+import { toDisplayDate } from '../../lib/platformClient'
 import type { Task, TaskStatus } from '../../lib/types'
 
 interface AspectVote {
@@ -29,7 +30,7 @@ function TaskCard({ task }: { task: Task }) {
       <span className="corp-badge" title="Which Gemini tier this task runs on (ADR-0013)">{task.modelTier}</span>
       <div className="corp-text-muted" style={{ fontSize: '0.85rem' }}>
         {task.assignee ?? 'unassigned'} · priority {task.priority}
-        {task.createdAt && ` · created ${new Date(task.createdAt).toLocaleString()}`}
+        {toDisplayDate(task.createdAt) && ` · created ${toDisplayDate(task.createdAt)!.toLocaleString()}`}
       </div>
       {task.description && (
         <p style={{ fontSize: '0.85rem', margin: '4px 0 0' }}>{task.description}</p>

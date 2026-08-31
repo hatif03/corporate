@@ -13,6 +13,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.services import store
+from app.services.storage_client import sign_existing_gcs_uri
 from app.services.veo_client import check_video_generation
 
 internal_router = APIRouter(prefix="/internal/veo/{org_id}", tags=["veo-internal"])
@@ -40,7 +41,15 @@ async def poll_pending_operations(org_id: str) -> dict:
 
         task = store.get_task(org_id, task_id)
         if task is not None:
-            store.update_task(org_id, task_id, result={**(task.result or {}), "videoUrl": video_uri})
+            # video_uri is a gs:// URI (only Vertex/gcloud tooling can
+            # dereference that) — sign it before a browser <video> tag ever
+            # sees it. Reproduced live: without this the player rendered a
+            # blank box with an unplayable src, and videoGenerating stayed
+            # true forever since nothing ever cleared it.
+            playable_url = sign_existing_gcs_uri(video_uri)
+            store.update_task(
+                org_id, task_id, result={**(task.result or {}), "videoUrl": playable_url, "videoGenerating": False}
+            )
         completed += 1
         store.delete_veo_operation(org_id, task_id)
 

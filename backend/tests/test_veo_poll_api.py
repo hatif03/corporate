@@ -37,19 +37,28 @@ def test_poll_leaves_still_running_operations_alone():
     assert not mock_update.called
 
 
-def test_poll_writes_video_url_and_clears_completed_operation():
+def test_poll_writes_a_playable_signed_url_and_clears_the_generating_flag():
+    """Regression test: reproduced live — the raw gs:// URI Veo hands back
+    was previously written straight into task.result.videoUrl, which no
+    browser <video> tag can dereference (a blank, unplayable player), and
+    videoGenerating never got cleared since nothing ever set it back to
+    False on completion."""
     with (
         patch("app.api.veo.store.list_veo_operations", return_value=[{"taskId": "task-1", "operationName": "op-1"}]),
         patch("app.api.veo.check_video_generation", new=AsyncMock(return_value="gs://bucket/clip.mp4")),
         patch("app.api.veo.store.get_task", return_value=_task("task-1", {"copy": "hi", "videoGenerating": True})),
+        patch("app.api.veo.sign_existing_gcs_uri", return_value="https://storage.googleapis.com/signed?sig=abc") as mock_sign,
         patch("app.api.veo.store.update_task") as mock_update,
         patch("app.api.veo.store.delete_veo_operation") as mock_delete,
     ):
         response = client.post("/internal/veo/demo/poll")
 
     assert response.json() == {"checked": 1, "completed": 1, "failed": 0}
+    mock_sign.assert_called_once_with("gs://bucket/clip.mp4")
     mock_update.assert_called_once_with(
-        "demo", "task-1", result={"copy": "hi", "videoGenerating": True, "videoUrl": "gs://bucket/clip.mp4"}
+        "demo",
+        "task-1",
+        result={"copy": "hi", "videoGenerating": False, "videoUrl": "https://storage.googleapis.com/signed?sig=abc"},
     )
     mock_delete.assert_called_once_with("demo", "task-1")
 

@@ -54,8 +54,13 @@ export function LandingPage() {
           Sign in with Google
         </PixelButton>
 
-        <PixelPanel variant="inset" style={{ width: '100%', maxWidth: 640, aspectRatio: '16 / 9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span className="corp-text-muted" style={{ fontSize: 'var(--corp-text-body-sm)' }}>Demo video coming soon</span>
+        <PixelPanel variant="inset" noPadding style={{ width: '100%', maxWidth: 640, aspectRatio: '16 / 9', overflow: 'hidden' }}>
+          <video
+            controls
+            playsInline
+            style={{ width: '100%', height: '100%', display: 'block', objectFit: 'cover' }}
+            src="/media/corporate-demo.mp4"
+          />
         </PixelPanel>
       </section>
 

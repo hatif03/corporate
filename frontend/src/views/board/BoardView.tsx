@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { watchBoard, type BoardNote } from '../../lib/platformClient'
+import { toDisplayDate, watchBoard, type BoardNote } from '../../lib/platformClient'
 
 // orgs/{orgId}/board/main — the CEO's shared company blackboard
 // (write_board tool, app/adk_agents/tools/universal.py). Previously had no
@@ -21,7 +21,7 @@ export function BoardView({ orgId }: { orgId: string }) {
           <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{note.markdown}</div>
           {note.updatedAt && (
             <div className="corp-text-muted" style={{ fontSize: '0.8rem', marginTop: 8 }}>
-              last updated {new Date(note.updatedAt).toLocaleString()}
+              last updated {toDisplayDate(note.updatedAt)?.toLocaleString() ?? 'recently'}
               {note.updatedBy && ` by ${note.updatedBy}`}
             </div>
           )}
