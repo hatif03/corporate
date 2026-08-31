@@ -97,7 +97,7 @@ cd backend && pytest -q          # 228+ tests
 cd frontend && npm run build && npm run lint
 ```
 
-Full setup detail, including Pub/Sub push-subscription setup and A2A server deployment, is in `README.md`.
+Full setup and testing detail, including Pub/Sub push-subscription setup and A2A server deployment, is in [`docs/TESTING.md`](docs/TESTING.md); the full system diagram is in `README.md` and `docs/ARCHITECTURE.md`.
 
 ## Which Google SDK did you use?
 

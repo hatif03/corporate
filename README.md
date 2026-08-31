@@ -46,41 +46,84 @@ All 9 planned departments implemented (Finance & Audit, Engineering & SRE, Legal
 /docs        Architecture Decision Records, architecture rules, diagrams
 ```
 
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Client["Browser"]
+        FE["React + Vite + Pixi.js<br/>Command Center UI"]
+    end
+
+    subgraph Firebase["Firebase"]
+        Auth["Firebase Auth<br/>(Google sign-in)"]
+        Hosting["Firebase Hosting<br/>(static frontend)"]
+    end
+
+    subgraph GCP["Google Cloud"]
+        subgraph CloudRun["Cloud Run"]
+            Backend["corporate-backend<br/>FastAPI + Google ADK"]
+            A2AServer["corporate-a2a-sales<br/>Sales & CRM A2A server"]
+        end
+        Firestore[("Firestore<br/>agents · tasks · messages<br/>memory · triggers · workers<br/>integrations · members")]
+        PubSub["Pub/Sub<br/>agent-bus topic<br/>+ one push subscription per agent"]
+        Scheduler["Cloud Scheduler<br/>fires schedule-type triggers"]
+        SecretMgr["Secret Manager<br/>third-party API credentials"]
+        Vertex["Vertex AI<br/>Gemini 3.5 flash/flash-lite + 3.1-pro-preview<br/>+ text-embedding-004"]
+        VertexLive["Vertex AI Live API<br/>gemini-live-2.5-flash-native-audio"]
+        Veo["Veo 3.1<br/>promo video generation"]
+        Lyria["Lyria 002<br/>break-room music"]
+    end
+
+    subgraph External["External"]
+        ThirdParty["Slack / Jira / GitHub /<br/>Stripe / Notion / HubSpot"]
+        OAuthProviders["Slack / GitHub / Notion<br/>OAuth \"Connect apps\""]
+        A2ACaller["External A2A caller<br/>(partner agent, Gemini Enterprise, ...)"]
+    end
+
+    FE -- "sign in" --> Auth
+    FE -- "onSnapshot (reads)" --> Firestore
+    FE -- "REST + Bearer ID token (writes)" --> Backend
+    FE -- "WebSocket /ws/voice/{orgId}" --> Backend
+    Hosting -. "serves" .-> FE
+
+    Backend -- "verify token + org membership" --> Auth
+    Backend -- "read/write" --> Firestore
+    Backend -- "publish_message()" --> PubSub
+    PubSub -- "push /internal/agent-turn/{agentId}" --> Backend
+    Backend -- "Gemini calls + embeddings" --> Vertex
+    Backend -- "relays audio via client.aio.live.connect()" --> VertexLive
+    Backend -- "generate_videos()" --> Veo
+    Backend -- "predict (music)" --> Lyria
+    Backend -- "call_integration()" --> SecretMgr
+    Backend -- "authenticated API calls" --> ThirdParty
+    Backend -- "OAuth code exchange" --> OAuthProviders
+    Scheduler -- "/internal/triggers/{org}/{id}/fire" --> Backend
+
+    A2ACaller -- "/.well-known/agent-card.json<br/>+ A2A task requests" --> A2AServer
+    A2AServer -- "runs the Sales & CRM<br/>ADK pipeline" --> Vertex
+    A2AServer -- "Firestore-backed sessions" --> Firestore
+```
+
+Component-by-component detail (what each box does, why it's shaped this way) is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
 ## Local development
 
-Prerequisites: Python 3.11+, Node 20+, a GCP project with Firestore (native mode) and the `agent-bus` Pub/Sub topic created (see Deployment below), and `gcloud auth application-default login` run once so the backend's Firestore/Pub-Sub clients can authenticate.
-
-**Backend:**
+See [`docs/TESTING.md`](docs/TESTING.md) for full setup, backend/frontend run instructions, the A2A server, running the test suite, and a live-deployment testing walkthrough. Quick start:
 ```bash
+# Backend
 cd backend
-python -m venv .venv
-.venv/Scripts/activate        # .venv/bin/activate on macOS/Linux
+python -m venv .venv && .venv/Scripts/activate  # .venv/bin/activate on macOS/Linux
 pip install -r requirements.txt
-cp .env.example .env          # fill in your GCP project id
-python scripts/seed.py --owner-uid <your-firebase-uid>   # seeds agents + grants you org access
+cp .env.example .env  # fill in your GCP project id
+python scripts/seed.py --owner-uid <your-firebase-uid>
 uvicorn app.main:app --reload --env-file .env
-```
-Set `LOCAL_DEV=1` in `.env` to run the Pub/Sub pull-loop instead of expecting real push delivery — useful before you've deployed a public backend URL for push subscriptions to target.
 
-Every `/api/org/{org_id}/*` endpoint requires a Firebase ID token from a user who's a member of that org (see `docs/system_prompt.md`'s Auth section) — sign in once via the frontend to create your Firebase user, grab your uid from the Firebase Console (or `firebase auth:export`), then re-run `seed.py --owner-uid` with it. Without this step every API call returns 401/403 by design.
-
-Run the test suite with `pytest` from `backend/` (all current tests mock Firestore/Pub-Sub/Gemini, so they run without any live GCP credentials).
-
-**Frontend:**
-```bash
+# Frontend
 cd frontend
 npm install
-cp .env.example .env           # fill in your Firebase web app config
+cp .env.example .env  # fill in your Firebase web app config
 npm run dev
 ```
-
-**A2A server (Sales & CRM, optional):** a second, standalone entrypoint exposing the Sales & CRM pipeline over the A2A protocol for external callers — see `docs/adr/0004-a2a-scoped-to-external-boundary-only.md`.
-```bash
-cd backend
-uvicorn app.a2a_server:app --port 8001 --reload
-curl http://localhost:8001/.well-known/agent-card.json
-```
-Deployed separately from the main backend (its own Cloud Run service) so `/.well-known/agent-card.json` sits at that service's own root, as the A2A spec expects.
 
 ## Deployment
 
